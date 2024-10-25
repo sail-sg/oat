@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Defining how components interface with each other."""
+import logging
 from argparse import Namespace
 from typing import Type
 
@@ -31,35 +32,22 @@ def get_program(
     program = lp.Program("online_dap")
 
     # Resource.
-    if args.total_gpus == 2:
-        actor_gpus = [0]
-        learner_gpus = [1]
-    elif args.total_gpus == 3:
-        actor_gpus = [0, 1]
-        learner_gpus = [2, 1]
-    elif args.total_gpus == 4:
-        actor_gpus = [0, 1]
-        learner_gpus = [2, 3]
-        if args.collocate:
-            actor_gpus = [0, 1, 2]
-            learner_gpus = [3, 2, 1]
-    elif args.total_gpus == 5:
-        actor_gpus = [0, 1, 2, 3]
-        learner_gpus = [4, 3, 2, 1]
-    elif args.total_gpus == 6:
-        actor_gpus = [0, 1, 2]
-        learner_gpus = [3, 4, 5]
-        if args.collocate:
-            actor_gpus = [0, 1, 2, 3]
-            learner_gpus = [4, 3, 2, 1]
-    elif args.total_gpus == 8:
-        actor_gpus = [0, 1, 2, 3]
-        learner_gpus = [4, 5, 6, 7]
-        if args.collocate:
-            actor_gpus = [0, 1, 2, 3, 4, 5, 6]
-            learner_gpus = [7, 6, 5, 4, 3, 2, 1]
+    if args.collocate:
+        actor_gpus = learner_gpus = list(range(args.total_gpus))
     else:
-        assert False
+        if args.total_gpus % 2 == 0:
+            actor_gpus = list(range(args.total_gpus // 2))
+            learner_gpus = list(range(args.total_gpus // 2, args.total_gpus))
+        else:
+            logging.warn(
+                "Number of GPUs not divisible by 2, one GPU will be forced to collocate learner and actor."
+            )
+            actor_gpus = list(range(args.total_gpus // 2 + 1))
+            learner_gpus = list(range(args.total_gpus // 2, args.total_gpus))
+
+    logging.warn(
+        f"=== GPU allocations ===\nActor: {actor_gpus}, Learner: {learner_gpus}"
+    )
 
     # IPC.
     ipc_server = program.add_node(
