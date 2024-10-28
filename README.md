@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://private-user-images.githubusercontent.com/38581401/380485232-6fa9045a-8f70-495b-bdec-2e4664044c41.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzAwMjMyNzMsIm5iZiI6MTczMDAyMjk3MywicGF0aCI6Ii8zODU4MTQwMS8zODA0ODUyMzItNmZhOTA0NWEtOGY3MC00OTViLWJkZWMtMmU0NjY0MDQ0YzQxLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDEwMjclMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQxMDI3VDA5NTYxM1omWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWE1Mzc4M2Y5ZWQ0MmUwOGZhNDY1MzIzZmVkODM5ZjRmY2QxYzI0ZTAyNWE3NWE2ZTljNDBiMzQyZWQ2YjkwNTcmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.Vz2gnqqITbwYfHcy5i4AqFdIwEBScTp-0THcUakrfak" height="230" alt="OAT" />
+  <img src="./assets/logo.png" height="230" alt="OAT" />
 </p>
 
 [![PyPI - Version](https://img.shields.io/pypi/v/oat.svg)](https://pypi.org/project/oat-llm)
