@@ -75,7 +75,9 @@ class Actor:
             reward_model_path=args.reward_oracle,
             tokenizer_path=args.pretrain,
             remote_rm_url=args.remote_rm_url,  # Only for remote RM.
+            max_workers=args.remote_rm_client_workers,  # Only for remote RM.
         )
+        self.reward_oracle_batch_size = args.reward_oracle_batch_size
 
         # ###################################
         # ####        Exploration        ####
@@ -167,7 +169,12 @@ class Actor:
             logging.info(f"Evaluating using oracle {self.oracle}")
             st = time.time()
             win_probs = self.oracle.compare(
-                prompts, responses, references, return_probs=True, disable_tqdm=True
+                prompts,
+                responses,
+                references,
+                batch_size=self.reward_oracle_batch_size,
+                return_probs=True,
+                disable_tqdm=True,
             )
             logging.info(f"Time elapse {time.time() - st}")
             return responses, win_probs
@@ -178,6 +185,7 @@ class Actor:
             prompts,
             [candidates[i][0] for i in range(len(prompts))],
             references,
+            batch_size=self.reward_oracle_batch_size,
             return_probs=True,
             disable_tqdm=True,
         )
@@ -185,6 +193,7 @@ class Actor:
             prompts,
             [candidates[i][1] for i in range(len(prompts))],
             references,
+            batch_size=self.reward_oracle_batch_size,
             return_probs=True,
             disable_tqdm=True,
         )
@@ -236,6 +245,7 @@ class Actor:
             prompts,
             [candidates[i][0] for i in range(len(prompts))],
             [candidates[i][1] for i in range(len(prompts))],
+            batch_size=self.reward_oracle_batch_size,
             return_probs=True,
             disable_tqdm=True,
         )

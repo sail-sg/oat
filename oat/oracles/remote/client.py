@@ -52,7 +52,7 @@ class RemoteRMOracle(OracleBase):
         inputs: List[str],
         candidates_A: List[str],
         candidates_B: List[str],
-        batch_size: int = 1,
+        batch_size: int = 4,
         return_probs: bool = False,
         disable_tqdm: bool = False,
     ) -> List[Any]:

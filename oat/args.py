@@ -107,7 +107,9 @@ def get_default_parser():
 
     # Oracle
     parser.add_argument("--reward_oracle", type=str, default="pairrm")
+    parser.add_argument("--reward_oracle_batch_size", type=int, default=1)
     parser.add_argument("--remote_rm_url", type=str, default="")
+    parser.add_argument("--remote_rm_client_workers", type=int, default=4)
     parser.add_argument("--bt_sample", action="store_true")
 
     ## Epistemic reward model
