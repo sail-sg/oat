@@ -38,8 +38,7 @@ def get_default_parser():
     parser.add_argument(
         "--total_gpus",
         type=int,
-        choices=[2, 3, 4, 5, 6, 8],
-        default=5,
+        default=8,
     )
     parser.add_argument("--collocate", action="store_true")
     parser.add_argument(
@@ -231,7 +230,7 @@ def get_default_parser():
     parser.add_argument("--use_wandb", type=str, default=None)
     parser.add_argument("--wandb_org", type=str, default=None)
     parser.add_argument("--wandb_group", type=str, default=None)
-    parser.add_argument("--wandb_project", type=str, default="online_align")
+    parser.add_argument("--wandb_project", type=str, default="oat-llm")
     parser.add_argument(
         "--wandb_run_name",
         type=str,

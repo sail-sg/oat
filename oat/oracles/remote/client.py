@@ -23,6 +23,7 @@ from warnings import warn
 import httpx
 import msgspec
 import numpy as np
+import tree
 
 from oat.oracles.base import OracleBase
 
@@ -51,29 +52,38 @@ class RemoteRMOracle(OracleBase):
         inputs: List[str],
         candidates_A: List[str],
         candidates_B: List[str],
-        batch_size: int = 4,
+        batch_size: int = 1,
         return_probs: bool = False,
         disable_tqdm: bool = False,
     ) -> List[Any]:
-        del batch_size, disable_tqdm
+        del disable_tqdm
 
         completions = list(zip(candidates_A, candidates_B))
 
-        # Define a function to get the rank for a single prompt, will be called concurrently
-        def get_rank(prompt, candidates):
+        batched_prompts = []
+        batched_completions = []
+        num = len(inputs)
+        for ndx in range(0, num, batch_size):
+            batched_prompts.append(inputs[ndx : min(ndx + batch_size, num)])
+            batched_completions.append(completions[ndx : min(ndx + batch_size, num)])
 
+        # Define a function to get the rank for a single prompt, will be called concurrently
+        def get_rank(bp, bc):
             wait_time = 1
             for _ in range(self.max_retry):
                 try:
                     resp = self.client.post(
                         "/compare",
                         content=msgspec.msgpack.encode(
-                            {"prompt": prompt, "candidates": candidates}
+                            {
+                                "batch_prompt": bp,
+                                "batch_candidates": bc,
+                            }
                         ),
                     )
                     if resp.status_code == HTTPStatus.OK:
                         result = msgspec.msgpack.decode(resp.content)
-                        first_win_prob = result["first_win_prob"]
+                        batch_first_win_prob = result["batch_first_win_prob"]
                         break
                     else:
                         raise RuntimeError(f"{resp.status_code}, {resp.content}")
@@ -84,15 +94,17 @@ class RemoteRMOracle(OracleBase):
             else:
                 raise RuntimeError("Remote RM server error!")
 
-            return first_win_prob
+            return batch_first_win_prob
 
         # Call the remote server concurrently
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.max_workers
         ) as executor:
-            first_win_probs = list(executor.map(get_rank, inputs, completions))
+            batch_first_win_prob = list(
+                executor.map(get_rank, batched_prompts, batched_completions)
+            )
 
-        first_win_probs = np.array(first_win_probs)
+        first_win_probs = np.array(tree.flatten(batch_first_win_prob))
         if return_probs:
             return first_win_probs
         else:

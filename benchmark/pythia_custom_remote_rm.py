@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+"""Custom RMs for tl;dr dataset built on Pythia."""
 import argparse
 import os
 from typing import List
@@ -21,6 +21,9 @@ from mosec import Runtime, Server, Worker
 from mosec.mixin import TypedMsgPackMixin
 from msgspec import Struct
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from trl.trainer.utils import get_reward
+
+from oat.utils.data import zero_pad_sequences
 
 
 class Request(Struct, kw_only=True):
@@ -32,63 +35,71 @@ class Response(Struct, kw_only=True):
     batch_first_win_prob: List[float]
 
 
-MODEL_CONFIGS = {
-    "Skywork/Skywork-Reward-Llama-3.1-8B": {
-        "attn_implementation": "flash_attention_2",
-        "num_labels": 1,
-    }
-}
+example = Request(
+    batch_prompt=[
+        "What is the range of the numeric output of a sigmoid node in a neural network?"
+    ]
+    * 8,
+    batch_candidates=[
+        [
+            "The output of a sigmoid node is bounded between -1 and 1.",
+            "The output of a sigmoid node is bounded between 0 and 1.",
+        ]
+    ]
+    * 8,
+)
 
 
-class RewardModel(TypedMsgPackMixin, Worker):
+class PythiaCustomRewardModel(TypedMsgPackMixin, Worker):
     def __init__(self):
         super().__init__()
         model_name = os.environ.get("RM_MODEL_NAME")
-        configs = MODEL_CONFIGS.get(model_name, {})
         self.model = AutoModelForSequenceClassification.from_pretrained(
             model_name,
-            device_map="auto",
+            num_labels=1,
             trust_remote_code=True,
-            torch_dtype=torch.bfloat16,
-            **configs,
         )
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.example = Request(
-            batch_prompt=[
-                "What is the range of the numeric output of a sigmoid node in a neural network?"
-            ],
-            batch_candidates=[
-                [
-                    "The output of a sigmoid node is bounded between -1 and 1.",
-                    "The output of a sigmoid node is bounded between 0 and 1.",
-                ]
-            ],
-        )  # To warmup: do one forward pass to allocate GPU memory
+        self.model.eval().to("cuda")
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            padding_side="left",
+            trust_remote_code=True,
+        )
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.example = example  # To warmup: do one forward pass to allocate GPU memory
 
     def forward(self, request: Request) -> Response:
         assert self.max_batch_size == 1
-        batch_msg1 = []
-        batch_msg2 = []
-        num_data = len(request.batch_prompt)
-        for i, prompt in enumerate(request.batch_prompt):
-            msg1 = [
-                {"role": "user", "content": prompt},
-                {"role": "assistant", "content": request.batch_candidates[i][0]},
-            ]
-            msg2 = [
-                {"role": "user", "content": prompt},
-                {"role": "assistant", "content": request.batch_candidates[i][1]},
-            ]
-            batch_msg1.append(msg1)
-            batch_msg2.append(msg2)
-        pair = self.tokenizer.apply_chat_template(
-            batch_msg1 + batch_msg2, tokenize=False
+        prompts = self.tokenizer(
+            request.batch_prompt, return_tensors="pt", padding=True
         )
-        pair = self.tokenizer(pair, return_tensors="pt", padding=True).to(
+        num_data, context_length = prompts["input_ids"].shape
+        prompt_ids = prompts["input_ids"].repeat(2, 1)
+        completion_ids = []
+        for c in [c[0] for c in request.batch_candidates] + [
+            c[1] for c in request.batch_candidates
+        ]:
+            completion_ids.append(
+                self.tokenizer(
+                    c,
+                    return_tensors="pt",
+                    padding=False,
+                )["input_ids"]
+            )
+        completion_ids = zero_pad_sequences(
+            completion_ids, side="right", value=self.tokenizer.pad_token_id
+        ).squeeze()
+        prompt_completion_ids = torch.cat((prompt_ids, completion_ids), dim=1).to(
             self.model.device
         )
         with torch.no_grad():
-            logits = self.model(**pair).logits.cpu().squeeze()
+            _, logits, _ = get_reward(
+                self.model,
+                prompt_completion_ids,
+                self.tokenizer.pad_token_id,
+                context_length,
+            )
         batch_scores_1 = logits[:num_data]
         batch_scores_2 = logits[num_data:]
         # Apply BT model.
@@ -101,7 +112,7 @@ class RewardModel(TypedMsgPackMixin, Worker):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--remote_rm_model", type=str, default="Skywork/Skywork-Reward-Llama-3.1-8B"
+        "--remote_rm_model", type=str, default="trl-lib/pythia-1b-deduped-tldr-rm"
     )
     parser.add_argument("--max_wait_time", type=int, default=10)
     parser.add_argument("--cuda_devices", type=str, default="all")
@@ -122,7 +133,7 @@ if __name__ == "__main__":
 
     server = Server()
     runtime = Runtime(
-        worker=RewardModel,
+        worker=PythiaCustomRewardModel,
         num=NUM_DEVICE,
         max_batch_size=1,
         env=[_prepare_env(x) for x in devices],

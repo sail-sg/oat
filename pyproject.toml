@@ -30,6 +30,7 @@ dependencies = [
   "dm-launchpad[tensorflow]",
   "einops",
   "flash-attn==2.6.3",
+  "fire",
   "httpx",
   "jsonlines",
   "llm-blender==0.0.2",
@@ -53,11 +54,6 @@ dependencies = [
   "wheel",
 ]
 
-[packages]
-include = "oat" 
-from = "oat"
-
-
 [project.urls]
 Documentation = "https://github.com/sail-sg/oat#readme"
 Issues = "https://github.com/sail-sg/oat/issues"
@@ -77,7 +73,7 @@ exclude = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/foo"]
+packages = ["oat"]
 
 [tool.hatch.envs.types]
 extra-dependencies = [
