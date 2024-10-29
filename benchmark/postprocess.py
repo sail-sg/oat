@@ -19,6 +19,7 @@ def main(run_name: str, wandb_proj: str = "lkevinzc/oat-benchmark"):
             data = run.history(keys=features_of_interest)
             break
 
+    print(data)
     print(data.iloc[range(5, 15), :].mean())
 
 

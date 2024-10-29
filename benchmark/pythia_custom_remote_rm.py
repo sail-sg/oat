@@ -54,14 +54,17 @@ class PythiaCustomRewardModel(TypedMsgPackMixin, Worker):
     def __init__(self):
         super().__init__()
         model_name = os.environ.get("RM_MODEL_NAME")
+        tokenizer_name = os.environ.get("TOKENIZER_NAME")
+
         self.model = AutoModelForSequenceClassification.from_pretrained(
             model_name,
             num_labels=1,
             trust_remote_code=True,
+            torch_dtype=torch.bfloat16,
         )
         self.model.eval().to("cuda")
         self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name,
+            tokenizer_name,
             padding_side="left",
             trust_remote_code=True,
         )
@@ -114,9 +117,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--remote_rm_model", type=str, default="trl-lib/pythia-1b-deduped-tldr-rm"
     )
+    parser.add_argument("--tokenizer", type=str, default="")
     parser.add_argument("--max_wait_time", type=int, default=10)
     parser.add_argument("--cuda_devices", type=str, default="all")
     args = parser.parse_args()
+
+    if args.tokenizer == "":
+        args.tokenizer = args.remote_rm_model
 
     if args.cuda_devices == "all":
         NUM_DEVICE = torch.cuda.device_count()
@@ -129,6 +136,7 @@ if __name__ == "__main__":
         return {
             "CUDA_VISIBLE_DEVICES": str(cid),
             "RM_MODEL_NAME": args.remote_rm_model,
+            "TOKENIZER_NAME": args.tokenizer,
         }
 
     server = Server()
