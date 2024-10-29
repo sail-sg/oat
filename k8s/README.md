@@ -15,4 +15,4 @@ python -m oat.experiment.main \
     # other flags...
 ```
 
-You could repeat step 2 to create many instances, which in turn supports running many experiments (step 3) in parallel.
+You could repeat step 2 to create as many instances as you want, which in turn supports running many experiments (step 3) in parallel.
