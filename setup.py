@@ -49,9 +49,9 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/sail-sg/oat",
     license="Apache-2.0",
-    packages=find_packages(exclude=["examples*", "k8s*", "benchmark"]),
+    packages=find_packages(exclude=["examples*", "k8s*", "benchmark*", "test*"]),
     include_package_data=True,
-    python_requires=">=3.10",
+    python_requires=">=3.8, <3.11",
     setup_requires=["setuptools_scm>=7.0"],
     zip_safe=False,
 )
