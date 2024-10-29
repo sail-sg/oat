@@ -259,6 +259,11 @@ def default_args_validation(args: argparse.Namespace):
     if args.rm_train_budget == -1:
         args.rm_train_budget = math.inf
     args.max_queries = max(args.max_queries, args.max_train)
+    args.max_model_len = (
+        args.prompt_max_length
+        + max(args.generate_max_length, args.eval_generate_max_length)
+        + 128
+    )
     gpu_available = torch.cuda.device_count()
     assert (
         gpu_available >= args.total_gpus

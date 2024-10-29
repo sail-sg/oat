@@ -9,13 +9,14 @@
 Oat 🌾 is a simple yet efficient learning system for executing online LLM alignment algorithms. Its features include:
 
 * **Highly efficient**: Oat implements a distributed *Actor-Learner-Oracle* architecture, with each component being optimized with state-of-the-art technologies:
-  * Actor is built with [vLLM](https://github.com/vllm-project/vllm) to accelerate the online response sampling.
-  * Learner utilizes [DeepSpeed](https://github.com/microsoft/DeepSpeed) ZeRO strategies for enhancing memory-efficiency.
-  * Oracle is hosted by [Mosec](https://github.com/mosecorg/mosec) as a remote service that supports dynamic request batching, data parallel & pipeline parallel computation.
-* **Easy-to-use**: With the modular Actor-Learner-Oracle design, researchers could simply inherit existing classes and make effortless modifications on any of the components to verify new algorithms. The experimentation pipeline is extremly simplified:
-  * No more model saving, checkpointing and offline evaluation, etc. Thanks to the hosted reward Oracle, we can evaluate the model anytime and log the win rate to wandb!
+  * `Actor` is built with [vLLM](https://github.com/vllm-project/vllm) to accelerate the online response sampling.
+  * `Learner` utilizes [DeepSpeed](https://github.com/microsoft/DeepSpeed) ZeRO strategies for enhancing memory-efficiency.
+  * `Oracle` is hosted by [Mosec](https://github.com/mosecorg/mosec) as a remote service that supports dynamic request batching, and data parallel & pipeline parallel computation.
+* **Simplification**: Oat largely simplifies the experimental pipeline of LLM alignment. With the `Oracle` served online, we can flexibly query it for preference data collection as well as anytime model evaluation. All you need is to launch your experiment and wait for learning curves (e.g., win rate) to be reported to wandb. No tedious training, checkpointing, loading for evaluation, etc. Everything happens online!
+* **Easy-to-use**: The modular design of oat allows researcher to simply inherit existing classes and make effortless modifications on any of the components to verify new algorithms.
+
 ## Installation :wrench:
-Oat requires a python environment with `python==3.10`.
+Oat requires a python environment with `python==3.10`. Install via PyPI:
 ```console
 pip install vllm==0.6.2 && pip install oat-llm
 ```
@@ -25,6 +26,9 @@ git clone git@github.com:sail-sg/oat.git
 cd oat
 pip install vllm==0.6.2 && pip install -e .
 ```
+
+## Usage
+
 
 ## License
 

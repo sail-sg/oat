@@ -62,9 +62,7 @@ def get_program(
         "gpu_memory_utilization": args.vllm_gpu_ratio,
         "dtype": "bfloat16",
         "enable_prefix_caching": False,
-        "max_model_len": args.prompt_max_length
-        + max(args.generate_max_length, args.eval_generate_max_length)
-        + 512,
+        "max_model_len": args.max_model_len,
     }
 
     actors = []
