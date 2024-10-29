@@ -1,4 +1,4 @@
-# 1B: Collocate all three workloads.
+# 1B: [Config 1] Collocate all three workloads.
 ## Actor: 8 vLLM instances each running on 1 GPU; 
 ## Learner: DeepSpeed zero-2 over 8 GPUs; 
 ## Oracle: 8 parallel RM workers each running on 1 GPU.
@@ -35,7 +35,7 @@ python -m oat.experiment.main \
     --wandb_project oat-benchmark \
     --wandb_run_name 1b_pythia
 
-# 2.8B: Collocate actors and oracle servers.
+# 2.8B: [Config 2] Collocate actors and oracle servers.
 ## Actor: 4 vLLM instances each running on 1 GPU (0~3); 
 ## Learner: DeepSpeed zero-2 over 4 GPUs (4~7); 
 ## Oracle: 4 parallel RM workers each running on 1 GPU (0~3).
@@ -73,7 +73,7 @@ python -m oat.experiment.main \
     --wandb_run_name 2.8b_pythia
 
 
-# 6.9B: Collocate actors and oracle servers.
+# 6.9B: [Config 2] Collocate actors and oracle servers.
 ## Actor: 4 vLLM instances each running on 1 GPU (0~3); 
 ## Learner: DeepSpeed zero-2 over 4 GPUs (4~7); 
 ## Oracle: 4 parallel RM workers each running on 1 GPU (0~3).

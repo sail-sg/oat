@@ -1,4 +1,4 @@
-# 1B: Fully parallel.
+# 1B: [Config 1] Collocate all three workloads.
 ## Actor: 8 vLLM instances each running on 1 GPU; 
 ## Learner: DeepSpeed zero-2 over 8 GPUs; 
 ## Oracle: 8 parallel RM workers each running on 1 GPU.
@@ -53,7 +53,10 @@ python -m oat.experiment.main \
     # --zero_stage 3
     # --adam_offload
 
-# 2.8B
+# 2.8B: [Config 2] Collocate actors and oracle servers.
+## Actor: 4 vLLM instances each running on 1 GPU (0~3); 
+## Learner: DeepSpeed zero-2 over 4 GPUs (4~7); 
+## Oracle: 4 parallel RM workers each running on 1 GPU (0~3).
 # 2.a) Start Mosec RM service.
 python -m oat.oracles.remote.server --cuda_devices 0,1,2,3
 

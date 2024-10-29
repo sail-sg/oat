@@ -19,6 +19,6 @@ readinessProbe:
   exec:
     command:
     - bash
-    - /path/to/home/online-align/k8s/readiness.sh
+    - /path/to/home/oat/k8s/readiness.sh # change the prefix to your project directory
   initialDelaySeconds: 30
   periodSeconds: 5
