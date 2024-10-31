@@ -108,9 +108,9 @@ def init_process_group(
 
     _world.pg_group_ranks[pg] = {i: i for i in range(world_size)}
 
-    logging.info(
-        f"init_process_group: init_method={init_method}, backend={backend}, ",
-        f"rank={rank}, world_size={world_size}, group_name={group_name}",
+    print(
+        f"init_process_group: init_method={init_method}, backend={backend}, "
+        + f"rank={rank}, world_size={world_size}, group_name={group_name}"
     )
     return pg
 

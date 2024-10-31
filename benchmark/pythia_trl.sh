@@ -43,7 +43,7 @@ accelerate launch --config_file examples/accelerate_configs/deepspeed_zero2.yaml
     --eval_steps 9999
 
 # 7B
-accelerate launch --config_file examples/accelerate_configs/deepspeed_zero2.yaml \
+accelerate launch --config_file examples/accelerate_configs/deepspeed_zero3.yaml \
     examples/scripts/dpo_online.py \
     --model_name_or_path trl-lib/pythia-6.9b-deduped-tldr-sft  \
     --reward_model_path trl-lib/pythia-6.9b-deduped-tldr-rm \
