@@ -6,16 +6,16 @@
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/oat-llm.svg)](https://pypi.org/project/oat-llm)
 
 ## Introduction
-Oat 🌾 is a simple yet efficient system for training online LLM alignment algorithms. Its features include:
+Oat 🌾 is a simple yet efficient system for training online LLM alignment algorithms. Key features include:
 
-* **Highly efficient**: Oat implements a distributed *Actor-Learner-Oracle* architecture, with each component being optimized with state-of-the-art technologies:
-  * `Actor` is built with [vLLM](https://github.com/vllm-project/vllm) to accelerate the online response sampling.
-  * `Learner` utilizes [DeepSpeed](https://github.com/microsoft/DeepSpeed) ZeRO strategies for enhancing memory-efficiency.
-  * `Oracle` is hosted by [Mosec](https://github.com/mosecorg/mosec) as a remote service that supports dynamic request batching, data parallelism and pipeline parallelism.
-* **Simplification**: Oat largely simplifies the experimental pipeline of LLM alignment. With the `Oracle` served online, we can flexibly query it for preference data labeling as well as anytime model evaluation. All you need is to launch your experiment and wait for learning curves (e.g., win rate) to be reported to [wandb](https://wandb.ai/lkevinzc/oat-llm). No tedious training, checkpointing and loading for evaluation, etc. Everything happens online!
-* **Oracle simulation**: Oat simulates preference oracles in various modes. Lightweight reward models run within the same process, while larger models can be served remotely. You could also query GPT to use LLM-as-a-judge.
-* **Easy-to-use**: The modular design of oat allows researchers to simply inherit existing classes and make modifications effortlessly on any of the components to verify new algorithms.
-* **State-of-the-art algorithms**: Oat implements state-of-the-art LLM exploration (active alignment) algorithms, including SEA, APL and XPO, along with popular direct optimizers such as DPO and SimPO. This facilitates easier development of new algorithms and fair comparisons.
+* **High Efficiency**: Oat implements a distributed *Actor-Learner-Oracle* architecture, with each component being optimized using state-of-the-art tools:
+  * `Actor`: Powered by [vLLM](https://github.com/vllm-project/vllm) for accelerated online response sampling.
+  * `Learner`: Enhanced by [DeepSpeed](https://github.com/microsoft/DeepSpeed) ZeRO strategies to maximize memory efficiency.
+  * `Oracle`: Hosted by [Mosec](https://github.com/mosecorg/mosec) as a remote service, supporting dynamic batching, data parallelism and pipeline parallelism.
+* **Simplification**: Oat simplifies the experimental pipeline of LLM alignment. With an `Oracle` served online, we can flexibly query it for preference data labeling as well as anytime model evaluation. All you need is to launch experiments and monitor real-time learning curves (e.g., win rate) on [wandb](https://wandb.ai/lkevinzc/oat-llm) — no need for manual training, checkpointing and loading for evaluation.
+* **Oracle Simulation**: Oat provides simulated preference oracles in various modes. Lightweight reward models run within the same process, while larger models are served remotely. Additionally, you can query GPT online to leverage LLM-as-a-judge as the oracle.
+* **Ease of Use**: With a modular design, oat allows researchers to inherit and modify existing classes effortlessly, enabling rapid algorithm development and testing.
+* **Cutting-Edge Algorithms**: Oat implements state-of-the-art LLM exploration (active alignment) algorithms, including SEA, APL and XPO, along with popular direct optimizers such as DPO and SimPO, fostering innovation and fair benchmarking.
 
 ## Installation :wrench:
 In a python environment (`>=3.8, <=3.10`), you can install oat via PyPI:
@@ -30,7 +30,7 @@ pip install vllm==0.6.2 && pip install -e .
 ```
 
 ## Usage
-Here is an example running online SimPO with PairRM as the preference oracle, to align a 1-B Pythia Model on the tl;dr dataset:
+Below is an example to align a 1-B Pythia Model on the tl;dr dataset using online SimPO with PairRM as the preference oracle:
 ```console
 python -m oat.experiment.main \
     --total_gpus 2 \
@@ -48,7 +48,7 @@ python -m oat.experiment.main \
     --use_wandb True \
     --wandb_run_name 1b_pairrm_dpo_online
 ```
-which takes less than two hours to run on only two A100 GPUs! We can set `--sync_params_every` a large number to disable policy learner weights synchronization to actors to run an offline SimPO, hence obtaining a comparison result:
+This example completes in less than two hours on two A100 GPUs! To run an offline SimPO for comparison, set `--sync_params_every` to a large number, disabling policy learner weights synchronization. 
 
 <p align="center">
   <img src="./assets/example_result.png" height="300" alt="OAT" />
@@ -57,7 +57,7 @@ which takes less than two hours to run on only two A100 GPUs! We can set `--sync
 More examples can be found [here](./examples/). 
 
 ## Benchmarking
-We conducted a system benchmarking to a concurrent implementation of online DPO by [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer), with the following configurations and results.
+Our system benchmarking compares oat with the online DPO implementation from [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer). We use the following configurations for oat, and show the benchmarking results below.
 
 <p align="center">
   <img src="./assets/system_configs.png" height="300" alt="OAT" />
@@ -67,7 +67,7 @@ We conducted a system benchmarking to a concurrent implementation of online DPO 
   <img src="./assets/bench_results.png" height="300" alt="OAT" />
 </p>
 
-Please refer to the Appendix C of our paper for detailed benchmarking methods and result discussion.
+Please refer to the Appendix C of our paper for detailed benchmarking methods and discussion on the results.
 
 ## License
 
