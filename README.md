@@ -48,12 +48,38 @@ python -m oat.experiment.main \
     --use_wandb True \
     --wandb_run_name 1b_pairrm_dpo_online
 ```
-which takes less than two hours to run on only two A100 GPUs! We can set `--sync_params_every` a large number to disable policy learner weights synchronization to actors, hence obtain the offline SimPO results:
+which takes less than two hours to run on only two A100 GPUs! We can set `--sync_params_every` a large number to disable policy learner weights synchronization to actors to run an offline SimPO, hence obtaining a comparison result:
+
 <p align="center">
-  <img src="./assets/example_result.png" height="200" alt="OAT" />
+  <img src="./assets/example_result.png" height="300" alt="OAT" />
 </p>
+
 More examples can be found [here](./examples/). 
+
+## Benchmarking
+We conducted a system benchmarking to a concurrent implementation of online DPO by [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer), with the following configurations and results.
+
+<p align="center">
+  <img src="./assets/system_configs.png" height="300" alt="OAT" />
+</p>
+
+<p align="center">
+  <img src="./assets/bench_results.png" height="300" alt="OAT" />
+</p>
+
+Please refer to the Appendix C of our paper for detailed benchmarking methods and result discussion.
 
 ## License
 
 `oat` is distributed under the terms of the [Apache2](https://www.apache.org/licenses/LICENSE-2.0) license.
+
+## Acknowledgement
+We thank the following awesome projects which oat benefits from:
+* [vLLM](https://github.com/vllm-project/vllm)
+* [DeepSpeed](https://github.com/microsoft/DeepSpeed)
+* [Mosec](https://github.com/mosecorg/mosec)
+* [OpenRLHF](https://github.com/OpenRLHF/OpenRLHF)
+
+## Disclaimer
+
+This is not an official Sea Limited or Garena Online Private Limited product.
