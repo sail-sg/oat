@@ -6,7 +6,7 @@ First of all, you could always check all supported arguments by running:
 python -m oat.experiment.main -h
 ```
 
-### (1) running various direct optimizers
+### (1) Running various direct optimizers
 
 `oat` currently supports DPO, IPO, SLiC, and SimPO by setting `--dap-algo`. Remember to adjust the associated hyper-parameter `beta`.
 
@@ -16,7 +16,7 @@ python -m oat.experiment.main \
 +   --beta 0.1 \
 ```
 
-### (2) integrating different preference oracles
+### (2) Integrating different preference oracles
 In the [main page](../README.md#usage) we have shown the usage of `pairrm` as the preference oracle, which runs locally in the same process as the actor. Next, we give an example of training `online DPO` with **a remote preference oracle served using [Mosec](https://github.com/mosecorg/mosec)**.
 
 First, we start the Mosec service, which will serve 4 `Skywork/Skywork-Reward-Llama-3.1-8B` parallel workers as the preference oracle on the first 4 GPUs:
@@ -78,7 +78,7 @@ python -m oat.experiment.main \
     --wb-run-name 1b_gpt_4o_mini_dpo_online
 ```
 
-### (2) implement diverse active exploration algorithms
+### (3) Implement diverse active exploration algorithms
 #### [SEA] Sample-Efficient Alignment for LLMs
 
 We natively support SEA using the `main` entry script. For example, running `SEA DPO` with the remote preference oracle:
