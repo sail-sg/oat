@@ -113,7 +113,7 @@ class DAPLearner(LearnerBase):
     ):
         """Concatenate the chosen and rejected inputs into a single tensor.
 
-        Args:
+        OATArgs:
             batch: A batch of data. Must contain the keys 'chosen_input_ids' and 'rejected_input_ids', which are tensors of shape (batch_size, sequence_length).
 
         Returns:
@@ -148,7 +148,7 @@ class DAPLearner(LearnerBase):
     ) -> torch.FloatTensor:
         """Compute the log probabilities of the given labels under the given logits.
 
-        Args:
+        OATArgs:
             logits: Logits of the model (unnormalized). Shape: (batch_size, sequence_length, vocab_size)
             labels: Labels for which to compute the log probabilities. Label tokens with a value of -100 are ignored. Shape: (batch_size, sequence_length)
             average_log_prob: If True, return the average log probability per (non-masked) token. Otherwise, return the sum of the log probabilities of the (non-masked) tokens.

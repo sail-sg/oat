@@ -22,7 +22,7 @@ def kl_divergence(rewards: torch.Tensor, temperature: float = 1.0) -> torch.Tens
     Calculates KL divergence between individual distribution predictions and
     the Bernoulli mixture distribution.
 
-    Args:
+    OATArgs:
         rewards (torch.Tensor): Reward prediction (logits), (E, M, N, 1)
 
     Returns:

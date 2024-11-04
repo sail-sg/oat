@@ -14,7 +14,6 @@
 
 import abc
 import random
-from argparse import Namespace
 from dataclasses import dataclass
 from typing import Dict, List
 
@@ -23,6 +22,7 @@ import numpy as np
 import torch
 import tree
 
+from oat.args import OATArgs
 from oat.rm import uncertainty
 from oat.rm.backbone import RMBackbone
 from oat.rm.model import RewardModel
@@ -48,7 +48,7 @@ class ExplorerBase(abc.ABC):
     ) -> List[str]:
         """Best-of-N generation given the reward model.
 
-        Args:
+        OATArgs:
             prompts (List[str]): A list of prompt texts, M
             candidates (Dict[int, List[str]]): Lists of responses per prompt, M -> N
 
@@ -64,7 +64,7 @@ class ExplorerBase(abc.ABC):
     ) -> ExplorationResults:
         """Select dueling responses from candidates.
 
-        Args:
+        OATArgs:
             prompts (List[str]): A list of prompt texts, M
             candidates (Dict[int, List[str]]): Lists of responses per prompt, M -> N
 
@@ -76,7 +76,7 @@ class ExplorerBase(abc.ABC):
     def compare(self, candidate_features: torch.Tensor) -> torch.Tensor:
         """Compare candidates using the reward model.
 
-        Args:
+        OATArgs:
             candidate_features (torch.Tensor): (M, 2, d)
 
         Returns:
@@ -86,7 +86,7 @@ class ExplorerBase(abc.ABC):
 
 class Explorer(ExplorerBase):
     def __init__(
-        self, reward_model: RewardModel, rm_backbone: RMBackbone, args: Namespace
+        self, reward_model: RewardModel, rm_backbone: RMBackbone, args: OATArgs
     ) -> None:
         self.backbone = rm_backbone
         self.reward_model = reward_model
@@ -104,7 +104,7 @@ class Explorer(ExplorerBase):
     ) -> List[str]:
         """Best-of-N generation given the reward model.
 
-        Args:
+        OATArgs:
             prompts (List[str]): A list of prompt texts, M
             candidates (Dict[int, List[str]]): Lists of responses per prompt, M -> N
 
@@ -127,7 +127,7 @@ class Explorer(ExplorerBase):
     ) -> ExplorationResults:
         """Select dueling responses from candidates.
 
-        Args:
+        OATArgs:
             prompts (List[str]): A list of prompt texts, M
             candidates (Dict[int, List[str]]): Lists of responses per prompt, M -> N
 
@@ -270,7 +270,7 @@ class ModelBasedExplorer(Explorer):
     model rollout when it trusts itself to boot sample efficiency."""
 
     def __init__(
-        self, reward_model: RewardModel, rm_backbone: RMBackbone, args: Namespace
+        self, reward_model: RewardModel, rm_backbone: RMBackbone, args: OATArgs
     ) -> None:
         super().__init__(reward_model, rm_backbone, args)
         self.count = 1

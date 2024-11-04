@@ -34,7 +34,7 @@ class DAPwRMLearner(DAPLearner):
         self.fixed_reg = args.rm_fixed_reg
         self.train_budget = args.rm_train_budget
 
-        assert args.exp_method != "no" and args.exp_pretrain == ""
+        assert args.exp_method != "no" and args.rm_pretrain == ""
         rm_cls = getattr(model, args.exp_method)
         if self.strategy.is_rank_0():
             self.rm: model.RewardModel = rm_cls(args).to(torch.cuda.current_device())

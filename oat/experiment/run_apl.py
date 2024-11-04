@@ -12,11 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+
 import launchpad as lp
 
-from oat.args import default_args_validation, get_default_parser
+from oat.args import OATArgs, default_args_validation, get_default_args
 from oat.baselines.apl import APLActor, APLLearner
 from oat.interface import get_program
+
+
+@dataclass
+class APLArgs(OATArgs):
+    """Active preference learning arguments."""
+
+    # Fig 2b and Fig 5 both show this variant is better than random,
+    # while Fig 2b shows the learning is not robust with entropy.
+    apl_pref_certainty_only: bool = False
 
 
 def run_apl(args):
@@ -30,17 +41,8 @@ def run_apl(args):
 
 
 if __name__ == "__main__":
-    parser = get_default_parser()
-    parser.add_argument(
-        "--apl_pref_certainty_only",
-        help=(
-            "Fig 2b and Fig 5 both show this variant is better than random, "
-            "while Fig 2b shows the learning is not robust with entropy."
-        ),
-        action="store_true",
-    )
-
-    args = default_args_validation(parser.parse_args())
+    args = get_default_args(APLArgs)
+    args = default_args_validation(args)
     if args.apl_pref_certainty_only:
         args.num_samples = 2
     run_apl(args)

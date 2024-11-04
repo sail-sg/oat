@@ -15,7 +15,7 @@
 import launchpad as lp
 
 from oat.actor import Actor
-from oat.args import default_args_validation, get_default_parser
+from oat.args import default_args_validation, get_default_args
 from oat.interface import get_program
 from oat.learners import DAPLearner, DAPwRMLearner
 
@@ -37,6 +37,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = get_default_parser()
-    args = default_args_validation(parser.parse_args())
+    args = get_default_args()
+    args = default_args_validation(args)
     main(args)

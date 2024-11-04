@@ -37,6 +37,7 @@ from torch import distributed as dist
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, DistributedSampler
 
+from oat.args import OATArgs
 from oat.model import LLM
 
 ModelOptimPair = Tuple[nn.Module, Optimizer]
@@ -50,7 +51,7 @@ def get_strategy(args):
     strategy = DeepspeedStrategy(
         seed=getattr(args, "seed", 42),
         max_norm=getattr(args, "max_norm", 1.0),
-        micro_train_batch_size=getattr(args, "micro_train_batch_size", 1),
+        train_batch_size_per_device=getattr(args, "train_batch_size_per_device", 1),
         train_batch_size=getattr(args, "train_batch_size", 128),
         zero_stage=args.zero_stage,
         bf16=getattr(args, "bf16", True),
@@ -182,18 +183,18 @@ class DeepspeedStrategy(ABC):
         self,
         seed: int = 42,
         max_norm: float = 0.0,
-        micro_train_batch_size=1,
+        train_batch_size_per_device=1,
         train_batch_size=1,
         zero_stage=2,
         bf16=True,
-        args=None,
+        args: OATArgs = None,
     ) -> None:
         super().__init__()
 
         self.args = args
         self.stage = zero_stage
         self.train_batch_size = train_batch_size
-        self.micro_train_batch_size = micro_train_batch_size
+        self.train_batch_size_per_device = train_batch_size_per_device
         self.bf16 = bf16
         self.seed = seed
         self.max_norm = max_norm
@@ -224,7 +225,7 @@ class DeepspeedStrategy(ABC):
         deepspeed.init_distributed(timeout=timeout)
         self.world_size = dist.get_world_size()
         self.accumulated_gradient = (
-            self.train_batch_size // self.micro_train_batch_size // self.world_size
+            self.train_batch_size // self.train_batch_size_per_device // self.world_size
         )
 
     def create_optimizer(self, model, **kwargs) -> Optimizer:
@@ -341,7 +342,7 @@ class DeepspeedStrategy(ABC):
             disable_trace_cache=self.disable_trace_cache,
         )
 
-        ds_config["train_micro_batch_size_per_gpu"] = self.micro_train_batch_size
+        ds_config["train_micro_batch_size_per_gpu"] = self.train_batch_size_per_device
         train_batch_size = self.train_batch_size
         # corner case for ptx loss (backward twice)
         # if self.is_rlhf and is_wrapped and self.args.pretrain_data is not None:
@@ -371,7 +372,7 @@ class DeepspeedStrategy(ABC):
         ds_config = get_eval_ds_config(
             offload=offload, stage=self.stage if self.stage == 3 else 0, bf16=self.bf16
         )
-        ds_config["train_micro_batch_size_per_gpu"] = self.micro_train_batch_size
+        ds_config["train_micro_batch_size_per_gpu"] = self.train_batch_size_per_device
         ds_config["train_batch_size"] = self.train_batch_size
 
         return ds_config

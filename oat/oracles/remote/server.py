@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import os
+from dataclasses import dataclass
 from typing import List
 
 import torch
+import tyro
 from mosec import Runtime, Server, Worker
 from mosec.mixin import TypedMsgPackMixin
 from msgspec import Struct
@@ -98,14 +99,15 @@ class RewardModel(TypedMsgPackMixin, Worker):
         return responses
 
 
+@dataclass
+class ServerArgs:
+    remote_rm_model: str = "Skywork/Skywork-Reward-Llama-3.1-8B"
+    max_wait_time: int = 10
+    cuda_devices: str = "all"
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--remote_rm_model", type=str, default="Skywork/Skywork-Reward-Llama-3.1-8B"
-    )
-    parser.add_argument("--max_wait_time", type=int, default=10)
-    parser.add_argument("--cuda_devices", type=str, default="all")
-    args = parser.parse_args()
+    args = tyro.cli(ServerArgs)
 
     if args.cuda_devices == "all":
         NUM_DEVICE = torch.cuda.device_count()

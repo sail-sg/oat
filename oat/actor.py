@@ -22,6 +22,7 @@ import tree
 import vllm
 
 from oat import oracles
+from oat.args import OATArgs
 from oat.exploration import ExplorationResults, Explorer, ModelBasedExplorer
 from oat.rm import backbone, model
 from oat.types import PreferenceData
@@ -34,7 +35,7 @@ logging.getLogger("vllm").setLevel(logging.ERROR)
 class Actor:
     """Actor handles the interaction between the LLM policy and the environment."""
 
-    def __init__(self, ipc_server, vllm_args, args) -> None:
+    def __init__(self, ipc_server, vllm_args, args: OATArgs) -> None:
         self.args = args
         self.eval_mode = False
         self.pi_beta_weights = None
@@ -105,11 +106,9 @@ class Actor:
                 args=args,
             )
 
-            if args.exp_pretrain:
-                logging.info(f"Loading pretrained ENN from {args.exp_pretrain}")
-                self.explorer.reward_model.load_state_dict(
-                    torch.load(args.exp_pretrain)
-                )
+            if args.rm_pretrain:
+                logging.info(f"Loading pretrained ENN from {args.rm_pretrain}")
+                self.explorer.reward_model.load_state_dict(torch.load(args.rm_pretrain))
             else:
                 self.learning_rm = True  # Learn RM online.
         self.model_rollout = args.model_rollout
@@ -166,7 +165,7 @@ class Actor:
             responses = [candidates[i][0] for i in range(len(prompts))]
 
         if references:
-            logging.info(f"Evaluating using oracle {self.oracle}")
+            logging.debug(f"Evaluating using oracle {self.oracle}")
             st = time.time()
             win_probs = self.oracle.compare(
                 prompts,
@@ -176,7 +175,7 @@ class Actor:
                 return_probs=True,
                 disable_tqdm=True,
             )
-            logging.info(f"Time elapse {time.time() - st}")
+            logging.debug(f"Time elapse {time.time() - st}")
             return responses, win_probs
         return responses, None
 
@@ -211,7 +210,7 @@ class Actor:
         from which 2 responses are selected to query the oracle for preference signal.
         The final constructed pair (x, y_w, y_l) is inserted into the replay buffer for learners.
 
-        Args:
+        OATArgs:
             prompts: A list of prompt texts.
             formatted_prompts: A list of chat template formatted prompt texts.
             references: A list of reference texts.

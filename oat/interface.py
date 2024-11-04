@@ -13,37 +13,37 @@
 # limitations under the License.
 """Defining how components interface with each other."""
 import logging
-from argparse import Namespace
 from typing import Type
 
 import launchpad as lp
 from launchpad.nodes.python import local_multi_processing
 
 from oat.actor import Actor
+from oat.args import OATArgs
 from oat.learners.base import LearnerBase
 from oat.utils.ipc import PlasmaShmServer
 from oat.utils.launcher import get_free_port
 
 
 def get_program(
-    args: Namespace, learner_cls: Type[LearnerBase], actor_cls: Type[Actor] = Actor
+    args: OATArgs, learner_cls: Type[LearnerBase], actor_cls: Type[Actor] = Actor
 ):
     """Define the default distributed program topology with configs."""
     program = lp.Program("online_dap")
 
     # Resource.
     if args.collocate:
-        actor_gpus = learner_gpus = list(range(args.total_gpus))
+        actor_gpus = learner_gpus = list(range(args.gpus))
     else:
-        if args.total_gpus % 2 == 0:
-            actor_gpus = list(range(args.total_gpus // 2))
-            learner_gpus = list(range(args.total_gpus // 2, args.total_gpus))
+        if args.gpus % 2 == 0:
+            actor_gpus = list(range(args.gpus // 2))
+            learner_gpus = list(range(args.gpus // 2, args.gpus))
         else:
             logging.warn(
                 "Number of GPUs not divisible by 2, one GPU will be forced to collocate learner and actor."
             )
-            actor_gpus = list(range(args.total_gpus // 2 + 1))
-            learner_gpus = list(range(args.total_gpus // 2, args.total_gpus))
+            actor_gpus = list(range(args.gpus // 2 + 1))
+            learner_gpus = list(range(args.gpus // 2, args.gpus))
 
     logging.warn(
         f"=== GPU allocations ===\nActor: {actor_gpus}, Learner: {learner_gpus}"

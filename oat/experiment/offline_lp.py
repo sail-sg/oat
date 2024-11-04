@@ -14,10 +14,24 @@
 
 """Offline alignment with online vLLM evaluation."""
 
+from dataclasses import dataclass
+
 import launchpad as lp
-from ellm.args import default_args_validation, get_default_parser
-from ellm.interface import get_program
-from ellm.learners import OfflineDAPLearner
+
+from oat.args import OATArgs, default_args_validation, get_default_args
+from oat.interface import get_program
+from oat.learners import OfflineDAPLearner
+
+
+@dataclass
+class OfflineArgs(OATArgs):
+    """Offline DAP from a preference dataset arguments."""
+
+    preference_data: str = ""
+    prompt_key: str = "prompt"
+    chosen_key: str = "chosen"
+    rejected_key: str = "rejected"
+    offline_buffer_path: str = "./data/buffer.pkl"
 
 
 def main(args):
@@ -31,11 +45,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = get_default_parser()
-    parser.add_argument("--preference_data", type=str, default="")
-    parser.add_argument("--prompt_key", type=str, default="prompt")
-    parser.add_argument("--chosen_key", type=str, default="chosen")
-    parser.add_argument("--rejected_key", type=str, default="rejected")
-    parser.add_argument("--offline_buffer_path", type=str, default="./data/buffer.pkl")
-    args = default_args_validation(parser.parse_args())
+    args = get_default_args(OfflineArgs)
+    args = default_args_validation(args)
     main(args)

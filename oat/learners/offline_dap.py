@@ -89,7 +89,7 @@ class OfflineDAPLearner(DAPLearner):
         self.start_time = time.time()
 
         self.actor_info = {}
-        bs = self.args.micro_rollout_batch_size
+        bs = self.args.rollout_batch_size_per_device
 
         if not self.strategy.args.debug:
             self.eval_and_log({}, eval=True)

@@ -74,7 +74,7 @@ def get_datasets(tokenizer, strategy, eval_only=False):
         eval_dataset = prompt_dataset
 
     eval_prompts_data = eval_dataset[args.eval_split].select(
-        range(min(args.max_test, len(eval_dataset[args.eval_split])))
+        range(min(args.max_eval, len(eval_dataset[args.eval_split])))
     )
     if not eval_only:
         prompts_dataset = PromptDataset(
@@ -179,8 +179,6 @@ def _preprocess_preference_data(
         prompt = data.prompt
         chosen = data.chosen_response
         rejected = data.rejected_response
-        # if input_template:
-        #     prompt = input_template.format(prompt)
 
     return prompt, chosen, rejected, data.same, data.chosen_id
 

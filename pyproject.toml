@@ -47,6 +47,7 @@ dependencies = [
   "scipy",
   "torchmetrics",
   "tqdm",
+  "tyro",
   "transformers==4.45.2",
   "transformers_stream_generator",
   "vllm==0.6.2",

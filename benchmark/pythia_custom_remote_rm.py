@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Custom RMs for tl;dr dataset built on Pythia."""
-import argparse
 import os
+from dataclasses import dataclass
 from typing import List
 
 import torch
+import tyro
 from mosec import Runtime, Server, Worker
 from mosec.mixin import TypedMsgPackMixin
 from msgspec import Struct
@@ -112,15 +113,16 @@ class PythiaCustomRewardModel(TypedMsgPackMixin, Worker):
         return responses
 
 
+@dataclass
+class ServerArgs:
+    remote_rm_model: str = "trl-lib/pythia-1b-deduped-tldr-rm"
+    tokenizer: str = ""
+    max_wait_time: int = 10
+    cuda_devices: str = "all"
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--remote_rm_model", type=str, default="trl-lib/pythia-1b-deduped-tldr-rm"
-    )
-    parser.add_argument("--tokenizer", type=str, default="")
-    parser.add_argument("--max_wait_time", type=int, default=10)
-    parser.add_argument("--cuda_devices", type=str, default="all")
-    args = parser.parse_args()
+    args = tyro.cli(ServerArgs)
 
     if args.tokenizer == "":
         args.tokenizer = args.remote_rm_model

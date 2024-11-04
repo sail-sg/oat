@@ -14,7 +14,6 @@
 
 import abc
 import random
-from argparse import Namespace
 from typing import Any, Dict, Tuple
 
 import einops
@@ -22,6 +21,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn, optim
 
+from oat.args import OATArgs
 from oat.rm import uncertainty
 from oat.rm.networks import EnsembleModel
 from oat.utils.buffer import UniformBuffer
@@ -42,7 +42,7 @@ class RewardModel(abc.ABC, nn.Module):
     ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]:
         """Get dueling actions based on rewards of given features.
 
-        Args:
+        OATArgs:
             features (torch.Tensor): (M, N, d)
 
         Returns:
@@ -53,7 +53,7 @@ class RewardModel(abc.ABC, nn.Module):
     def get_best_action(self, features: torch.Tensor) -> torch.LongTensor:
         """Get Best-of-N action based on rewards of given features.
 
-        Args:
+        OATArgs:
             features (torch.Tensor): (M, N, d)
 
         Returns:
@@ -101,7 +101,7 @@ class EnnEETS(RewardModel):
             "train/rm/lambda": 0,
         }
 
-    def __init__(self, args: Namespace) -> None:
+    def __init__(self, args: OATArgs) -> None:
         super().__init__()
         assert args.enn_max_try <= args.num_ensemble
 
@@ -209,7 +209,7 @@ class EnnEETS(RewardModel):
 class EnnUncertainty(EnnEETS):
     """Pure exploration based on ensemble."""
 
-    def __init__(self, args: Namespace) -> None:
+    def __init__(self, args: OATArgs) -> None:
         super().__init__(args)
         self.uct_fn = uncertainty.logits_variance
 
@@ -227,7 +227,7 @@ class EnnUncertainty(EnnEETS):
 class EnnBAITS(EnnEETS):
     """BAI Thompson Sampling based on ensemble."""
 
-    def __init__(self, args: Namespace) -> None:
+    def __init__(self, args: OATArgs) -> None:
         super().__init__(args)
         self.uct_fn = uncertainty.logits_variance
 

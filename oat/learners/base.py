@@ -18,7 +18,6 @@ import math
 import os
 import socket
 import time
-from argparse import Namespace
 from collections import deque
 from datetime import datetime
 from typing import Any, Dict, List, Union
@@ -38,6 +37,7 @@ from tqdm import tqdm
 from transformers.trainer import get_scheduler
 
 from oat.actor import Actor
+from oat.args import OATArgs
 from oat.model import LLM
 from oat.types import DAPAlgo, PreferenceData
 from oat.utils.data import PreferenceDataset, get_datasets, get_tokenizer
@@ -62,7 +62,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         master_addr: str,
         master_port: str,
         is_master: bool,
-        args: Namespace,
+        args: OATArgs,
         actors: List[Actor],
         ipc_server: PlasmaShmServer,
     ) -> None:
@@ -73,7 +73,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.actors = actors
         self.ipc_server = ipc_server
 
-    def _init(self, args: Namespace, actors: List[Actor]) -> None:
+    def _init(self, args: OATArgs, actors: List[Actor]) -> None:
         args, strategy = get_strategy(args)
         strategy.setup_distributed()
 
@@ -122,7 +122,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         )
 
         # prepare datasets
-        self.pi_buffer = deque(maxlen=args.micro_pi_buffer_maxlen)
+        self.pi_buffer = deque(maxlen=args.pi_buffer_maxlen_per_device)
         self.all_buffer = deque(maxlen=int(1e9))
 
         self.prepare_data(strategy, tokenizer)
@@ -169,26 +169,22 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             )
             self.ref_model = None
 
-        # load checkpoint
-        if args.load_checkpoint:
-            strategy.print("Load checkpoint: ", args.save_path)
-
-        exp_name = args.wandb_run_name + "_" + datetime.now().strftime("%m%dT%H:%M:%S")
+        exp_name = args.wb_run_name + "_" + datetime.now().strftime("%m%dT%H:%M:%S")
         self.save_path = os.path.join(args.save_path, exp_name)
         os.makedirs(self.save_path, exist_ok=True)
 
         # logger
         self._wandb = None
-        if strategy.args.use_wandb and strategy.is_rank_0():
+        if strategy.args.use_wb and strategy.is_rank_0():
             import wandb
 
             self._wandb = wandb
             if not wandb.api.api_key:
-                wandb.login(key=strategy.args.use_wandb)
+                wandb.login(key=strategy.args.use_wb)
             wandb.init(
-                entity=args.wandb_org,
-                project=args.wandb_project,
-                group=args.wandb_group,
+                entity=args.wb_org,
+                project=args.wb_project,
+                group=args.wb_group,
                 name=exp_name,
                 config=args.__dict__,
                 reinit=True,
@@ -200,7 +196,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.strategy = strategy
         self.tokenizer = tokenizer
         self.update_interval = args.rollout_batch_size // (
-            strategy.world_size * args.micro_rollout_batch_size
+            strategy.world_size * args.rollout_batch_size_per_device
         )
 
         self.global_step = 0
@@ -263,7 +259,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         )
         self.prompts_dataloader = strategy.setup_dataloader(
             self.prompts_dataset,
-            strategy.args.micro_rollout_batch_size,
+            strategy.args.rollout_batch_size_per_device,
             pin_memory=True,
             shuffle=True,
         )
@@ -431,7 +427,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
         dataloader = DataLoader(
             dataset,
-            batch_size=self.args.micro_train_batch_size,
+            batch_size=self.args.train_batch_size_per_device,
             shuffle=True,
             drop_last=True,
             pin_memory=True,
@@ -594,7 +590,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             futs = []
             win_probs = []
             wins = []
-            progress_bar = tqdm(range(len(dataloader)))
+            progress_bar = tqdm(range(len(dataloader)), desc="Evaluating")
             for i, (batch_processed_prompts, batch_prompts, refs) in enumerate(
                 dataloader
             ):
@@ -624,7 +620,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                     self.eval_output_key: responses,
                     f"format_{self.eval_input_key}": processed_prompts,
                     "reference": references,
-                    "generator": self.args.wandb_run_name,
+                    "generator": self.args.wb_run_name,
                 }
             ).to_json(
                 os.path.join(eval_res_path, f"{steps}.json"),

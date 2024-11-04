@@ -12,11 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+
 import launchpad as lp
 
-from oat.args import default_args_validation, get_default_parser
+from oat.args import OATArgs, default_args_validation, get_default_args
 from oat.baselines.xpo import XPOActor, XPOLearner
 from oat.interface import get_program
+
+
+@dataclass
+class XPOArgs(OATArgs):
+    """Exploratory preference optimization arguments."""
+
+    xpo_alpha: float = 5e-6
+    xpo_offload_actor_ref: bool = False
 
 
 def run_xpo(args):
@@ -30,9 +40,6 @@ def run_xpo(args):
 
 
 if __name__ == "__main__":
-    parser = get_default_parser()
-    parser.add_argument("--xpo_alpha", type=float, default=5e-6)
-    parser.add_argument("--xpo_offload_actor_ref", action="store_true")
-
-    args = default_args_validation(parser.parse_args())
+    args = get_default_args(XPOArgs)
+    args = default_args_validation(args)
     run_xpo(args)
