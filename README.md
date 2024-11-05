@@ -13,37 +13,39 @@
 
 ## Introduction
 
-Oat 🌾 is a simple yet efficient system for running online LLM alignment algorithms. Key features include:
+Oat 🌾 is a simple yet efficient system for running online LLM alignment algorithms. Its key features include:
 
 * **High Efficiency**: Oat implements a distributed *Actor-Learner-Oracle* architecture, with each component being optimized using state-of-the-art tools:
-  * `Actor`: Powered by [vLLM](https://github.com/vllm-project/vllm) for accelerated online response sampling.
-  * `Learner`: Enhanced by [DeepSpeed](https://github.com/microsoft/DeepSpeed) ZeRO strategies to maximize memory efficiency.
+  * `Actor`: Utilizes [vLLM](https://github.com/vllm-project/vllm) for accelerated online response sampling.
+  * `Learner`: Leverages [DeepSpeed](https://github.com/microsoft/DeepSpeed) ZeRO strategies to enhance memory efficiency.
   * `Oracle`: Hosted by [Mosec](https://github.com/mosecorg/mosec) as a remote service, supporting dynamic batching, data parallelism and pipeline parallelism.
-* **Simplification**: Oat simplifies the experimental pipeline of LLM alignment. With an `Oracle` served online, we can flexibly query it for preference data labeling as well as anytime model evaluation. All you need is to launch experiments and monitor real-time learning curves (e.g., win rate) on [wandb](https://wandb.ai/lkevinzc/oat-llm) — no need for manual training, checkpointing and loading for evaluation.
+* **Simplified Workflow**: Oat simplifies the experimental pipeline of LLM alignment. With an `Oracle` served online, we can flexibly query it for preference data labeling as well as anytime model evaluation. All you need is to launch experiments and monitor real-time learning curves (e.g., win rate) on [wandb](https://wandb.ai/lkevinzc/oat-llm) — no need for manual training, checkpointing and loading for evaluation.
 * **Oracle Simulation**: Oat provides simulated preference oracles in various modes.
-  * Lightweight reward models can run directly in the actor's process, facilitating fast testing with as few as two GPUs.
+  * Lightweight reward models run within the actor's process, enabling quick testing on as few as two GPUs.
   * Larger and more capable reward models can be served remotely, harnessing additional compute and memory resources.
   * LLM-as-a-judge is supported via querying OpenAI API for model-based pairwise ranking.
-* **Ease of Use**: With a modular design, oat allows researchers to inherit and modify existing classes effortlessly, enabling rapid prototyping of algorithms.
+* **Ease of Use**: Oat's modular structure allows researchers to easily inherit and modify existing classes, enabling rapid prototyping and experimentation with new algorithms.
 * **Cutting-Edge Algorithms**: Oat implements state-of-the-art LLM exploration (active alignment) algorithms, including SEA, APL and XPO, along with popular direct optimizers such as DPO and SimPO, fostering innovation and fair benchmarking.
 
 ## LLM alignment as contextual dueling bandits
 
-LLM alignment is essentially an online learning and decision making problem where the **agent** (e.g., including the LLM policy and an optional built-in reward model) interacts with the **environment** (i.e., humans) to meet either of the two distinct objectives: minimizing cumulative regret (in the *Explore & Exploit* setting) or minimizing anytime regret (in the *Best Arm Identification* setting). 
+LLM alignment is essentially an online learning and decision making problem where the **agent** (e.g., the LLM policy with an optional built-in reward model) interacts with the **environment** (i.e., humans) to achieve either of the two distinct objectives: minimizing cumulative regret in the *Explore & Exploit* setting or minimizing anytime regret in the *Best Arm Identification* setting.
 
-In https://arxiv.org/abs/2411.01493, we fomulate LLM alignment as contextual dueling bandits (CDB) (a glance below), and propose a sample-efficient way for alignment based on Thompson sampling. The CDB formulation requires an efficient online training system to validate the proposed method and compare with other baselines. Oat 🌾 is part of the efforts in this research work.
+In our [paper](https://arxiv.org/abs/2411.01493), we formalize LLM alignment as a **contextual dueling bandits (CDB)** problem (see illustration below) and propose a sample-efficient alignment approach based on Thompson sampling.
 
 <p align="center">
   <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e0da719024bdc16fb4a993a8405e15cb0cf2b53a/interface.png" height="160"/>
 </p>
 
-With CDB, we can summarize existing LLM alignment paradigms as follows:
+The CDB framework necessitates an efficient online training system to validate the proposed method and compare it with other baselines. Oat 🌾 is developed as part of this research initiative.
+
+Using the CDB framework, existing LLM alignment paradigms can be summarized as follows:
 
 <p align="center">
   <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/acbb25a20dd6c1e7619539b0fa449076ade2f873/compare.png" height="270"/>
 </p>
 
-Please check out our paper if you are interested!
+For more details, please check out our [paper](https://arxiv.org/abs/2411.01493)!
 
 ## Installation
 In a python environment with supported versions (`>=3.8, <=3.10`), you could install oat via PyPI:
