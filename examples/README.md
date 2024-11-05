@@ -210,7 +210,7 @@ python -m oat.experiment.main \
 +   --best_of_n_eval \
 +   --num_bon 10 \
     --use-wb \
-    --wb-run-name 1b_skywork_dpo_online
++   --wb-run-name 1b_skywork_dpo_ee4llm
 ```
 
 ### [APL] Active Preference Learning for Large Language Models
