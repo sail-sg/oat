@@ -23,8 +23,23 @@ Oat 🌾 is a simple yet efficient system for running online LLM alignment algor
 * **Ease of Use**: With a modular design, oat allows researchers to inherit and modify existing classes effortlessly, enabling rapid prototyping of algorithms.
 * **Cutting-Edge Algorithms**: Oat implements state-of-the-art LLM exploration (active alignment) algorithms, including SEA, APL and XPO, along with popular direct optimizers such as DPO and SimPO, fostering innovation and fair benchmarking.
 
-## Sample-efficient alignment for LLMs
-If LLM leads us to AGI, it must be an online learner (see [Rich Sutton's thought on learning](https://www.youtube.com/watch?v=NvfK1TkXmOQ)). Online alignment is a crucial part of LLM's online learning process, where the LLM agent continually interacts with human beings and aligns with humans' values. 
+## LLM alignment as contextual dueling bandits
+
+LLM alignment is essentially an online learning and decision making problem where the **agent** (e.g., including the LLM policy and an optional built-in reward model) interacts with the **environment** (i.e., humans) to meet either of the two distinct objectives: minimizing cumulative regret (in the *Explore & Exploit* setting) or minimizing anytime regret (in the *Best Arm Identification* setting). 
+
+We fomulate LLM alignment as contextual dueling bandits in https://arxiv.org/abs/2411.01493, which requires an efficient online training system to validate the proposed method and other baselines. Oat 🌾 is part of the efforts in this research work.
+
+<p align="center">
+  <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e0da719024bdc16fb4a993a8405e15cb0cf2b53a/interface.png" height="160"/>
+</p>
+
+With the contextual dueling bandit formulation, we can summarize existing LLM alignment paradigms as follows:
+
+<p align="center">
+  <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/acbb25a20dd6c1e7619539b0fa449076ade2f873/compare.png" height="270"/>
+</p>
+
+Please check out our paper if you are interested!
 
 ## Installation
 In a python environment with supported versions (`>=3.8, <=3.10`), you could install oat via PyPI:
@@ -126,7 +141,7 @@ Our system benchmarking compares oat with the online DPO implementation from [hu
   <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e23f40d33e8a2fa4220e8122c152b356084b8afb/bench_results.png" height="300" alt="OAT" />
 </p>
 
-Please refer to the Appendix C of our paper for detailed benchmarking methods and discussion on the results.
+Please refer to the [Appendix C of our paper](https://arxiv.org/pdf/2411.01493#page=17.64) for detailed benchmarking methods and discussion on the results.
 
 ## License
 
