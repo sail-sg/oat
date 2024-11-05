@@ -9,6 +9,7 @@ This document provides extensive examples demonstrating how to use oat 🌾 to (
   - [\[SEA\] Sample-Efficient Alignment for LLMs](#sea-sample-efficient-alignment-for-llms)
   - [\[APL\] Active Preference Learning for Large Language Models](#apl-active-preference-learning-for-large-language-models)
   - [\[XPO\] Exploratory Preference Optimization](#xpo-exploratory-preference-optimization)
+  - [\[EE4LLM\] Efficient Exploration for LLMs](#ee4llm-efficient-exploration-for-llms)
 
 
 First of all, you could always check all supported arguments by running:
@@ -127,6 +128,8 @@ python -m oat.experiment.main \
 
 > [!NOTE]
 > Paper: https://arxiv.org/pdf/2411.01493
+> 
+> You can find a thorough comparison between all algorithms implemented in this section in our paper.
 
 Oat natively supports SEA using the `oat.experiment.main` entry script. For example, running `SEA DPO` with a Mosec-served preference oracle:
 ```diff
@@ -199,6 +202,7 @@ python -m oat.experiment.main \
 +   --max_train 100000 \
 +   --max_step_adjustment 0.125 \
 +   --num_samples 8 \
++   --apl_pref_certainty_only \
     --use-wb \
 +   --wb-run-name 1b_skywork_apl
 ```
@@ -233,4 +237,44 @@ python -m oat.experiment.main \
     --eval-steps 20 \
     --use-wb \
 +   --wb-run-name 1b_skywork_xpo
+```
+
+### [EE4LLM] Efficient Exploration for LLMs
+
+> [!NOTE]
+> Paper: https://arxiv.org/pdf/2402.00396
+
+```diff
+python -m oat.experiment.main \
+    --flash-attn \
+    --gradient-checkpointing \
+    --rnd-seed \
+    --gpus 8 \
+    --dap-algo DPO \
+    --beta 0.1 \
+    --reward-oracle remote \
+    --remote-rm-url http://0.0.0.0:8000 \
+    --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
+    --prompt-data lkevinzc/tldr-with-sft-reference \
+    --input-key prompt \
+    --output-key pythia-1b-reference \
+    --sync-params-every 1 \
+    --max-train 50000 \
+    --generate-max-length 53 \
+    --train-batch-size 128 \
+    --rollout-batch-size 128 \
+    --rollout-batch-size-per-device 32 \
+    --pi-buffer-maxlen-per-device 32 \
+    --train-batch-size-per-device 8 \
+    --eval-steps 20 \
++   --num-samples 20 \
++   --learn-rm \
++   --learn_rm_only \
++   --exp-method EnnEETS \
++   --exp_rnd_sample \
++   --online_evaluation \
++   --best_of_n_eval \
++   --num_bon 10 \
+    --use-wb \
+    --wb-run-name 1b_skywork_dpo_online
 ```

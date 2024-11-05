@@ -4,10 +4,8 @@
 
 [![PyPI - Version](https://img.shields.io/pypi/v/oat-llm.svg)](https://pypi.org/project/oat-llm)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/oat-llm.svg)](https://pypi.org/project/oat-llm)
-<a href="">
-<img src="https://img.shields.io/github/license/sail-sg/oat" alt="License">
-<a href="https://arxiv.org/pdf/2411.01493">
-<img src="https://img.shields.io/badge/arXiv-2411.01493-b31b1b.svg" alt="Arxiv">
+[![License](https://img.shields.io/github/license/sail-sg/oat)](https://github.com/sail-sg/oat/blob/main/LICENSE)
+[![arXiv](https://img.shields.io/badge/arXiv-2411.01493-b31b1b.svg)](https://arxiv.org/abs/2411.01493)
 
 ## Introduction
 

@@ -50,6 +50,7 @@ class APLActor(actor.Actor):
             prompts, sampling_params=self.sampling_params, use_tqdm=False
         )
 
+        ent_filtered_indices = None
         if not self.args.apl_pref_certainty_only:
             # Predictive entropy estimation.
             entropy_estimations = []
