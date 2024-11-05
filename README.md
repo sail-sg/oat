@@ -25,7 +25,7 @@ Oat 🌾 is a simple yet efficient system for running online LLM alignment algor
   * Larger and more capable reward models can be served remotely, harnessing additional compute and memory resources.
   * LLM-as-a-judge is supported via querying OpenAI API for model-based pairwise ranking.
 * **Ease of Use**: Oat's modular structure allows researchers to easily inherit and modify existing classes, enabling rapid prototyping and experimentation with new algorithms.
-* **Cutting-Edge Algorithms**: Oat implements state-of-the-art LLM exploration (active alignment) algorithms, including SEA, APL and XPO, along with popular direct optimizers such as DPO and SimPO, fostering innovation and fair benchmarking.
+* **Cutting-Edge Algorithms**: Oat implements state-of-the-art LLM exploration (active alignment) algorithms, including [SEA](https://arxiv.org/abs/2411.01493), APL and XPO, along with popular direct optimizers such as DPO and SimPO, fostering innovation and fair benchmarking.
 
 ## LLM alignment as contextual dueling bandits
 
