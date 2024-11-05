@@ -7,6 +7,10 @@
 [![License](https://img.shields.io/github/license/sail-sg/oat)](https://github.com/sail-sg/oat/blob/main/LICENSE)
 [![arXiv](https://img.shields.io/badge/arXiv-2411.01493-b31b1b.svg)](https://arxiv.org/abs/2411.01493)
 
+[Installation](#installation) | [Usage](#usage) | [Examples](./examples/) | [Benchmarking](#benchmarking) | [Citation](#citation)
+
+---
+
 ## Introduction
 
 Oat 🌾 is a simple yet efficient system for running online LLM alignment algorithms. Key features include:
@@ -27,13 +31,13 @@ Oat 🌾 is a simple yet efficient system for running online LLM alignment algor
 
 LLM alignment is essentially an online learning and decision making problem where the **agent** (e.g., including the LLM policy and an optional built-in reward model) interacts with the **environment** (i.e., humans) to meet either of the two distinct objectives: minimizing cumulative regret (in the *Explore & Exploit* setting) or minimizing anytime regret (in the *Best Arm Identification* setting). 
 
-We fomulate LLM alignment as contextual dueling bandits in https://arxiv.org/abs/2411.01493, which requires an efficient online training system to validate the proposed method and other baselines. Oat 🌾 is part of the efforts in this research work.
+In https://arxiv.org/abs/2411.01493, we fomulate LLM alignment as contextual dueling bandits (CDB) (a glance below), and propose a sample-efficient way for alignment based on Thompson sampling. The CDB formulation requires an efficient online training system to validate the proposed method and compare with other baselines. Oat 🌾 is part of the efforts in this research work.
 
 <p align="center">
   <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e0da719024bdc16fb4a993a8405e15cb0cf2b53a/interface.png" height="160"/>
 </p>
 
-With the contextual dueling bandit formulation, we can summarize existing LLM alignment paradigms as follows:
+With CDB, we can summarize existing LLM alignment paradigms as follows:
 
 <p align="center">
   <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/acbb25a20dd6c1e7619539b0fa449076ade2f873/compare.png" height="270"/>
@@ -142,6 +146,18 @@ Our system benchmarking compares oat with the online DPO implementation from [hu
 </p>
 
 Please refer to the [Appendix C of our paper](https://arxiv.org/pdf/2411.01493#page=17.64) for detailed benchmarking methods and discussion on the results.
+
+## Citation
+If you find this work useful for your research, please consider citing
+```
+@article{
+  liu2024sea,
+  title={Sample-Efficient Alignment for LLMs},
+  author={Zichen Liu and Changyu Chen and Chao Du and Wee Sun Lee and Min Lin},
+  journal={arXiv preprint arXiv:2411.01493},
+  year={2024}
+}
+```
 
 ## License
 
