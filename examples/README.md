@@ -1,11 +1,11 @@
 This document provides extensive examples demonstrating how to use oat 🌾 to (1) run various direct optimizers, (2) integrate different preference oracles, and (3) implement diverse active exploration algorithms. All the examples are tested on a machine with 8 A100 GPUs, with training logs publicly available on [wandb](https://wandb.ai/lkevinzc/oat-llm/) for reproducibility.
 
-- [Running various direct optimizers](#running-various-direct-optimizers)
-- [Integrating different preference oracles](#integrating-different-preference-oracles)
+- [Direct optimizers](#direct-optimizers)
+- [Preference oracles](#preference-oracles)
   - [Locally hosted Mosec service](#locally-hosted-mosec-service)
   - [OpenAI API for GPT-as-a-judge](#openai-api-for-gpt-as-a-judge)
   - [Scale up with remote Mosec service](#scale-up-with-remote-mosec-service)
-- [Implementing diverse active exploration algorithms](#implementing-diverse-active-exploration-algorithms)
+- [LLM exploration algorithms](#llm-exploration-algorithms)
   - [\[SEA\] Sample-Efficient Alignment for LLMs](#sea-sample-efficient-alignment-for-llms)
   - [\[EE4LLM\] Efficient Exploration for LLMs](#ee4llm-efficient-exploration-for-llms)
   - [\[APL\] Active Preference Learning for Large Language Models](#apl-active-preference-learning-for-large-language-models)
@@ -17,7 +17,7 @@ First of all, you could always check all supported arguments by running:
 python -m oat.experiment.main -h
 ```
 
-## Running various direct optimizers
+## Direct optimizers
 
 `oat` currently supports DPO, IPO, SLiC, and SimPO by setting `--dap-algo`. Remember to adjust the associated hyper-parameter `beta`.
 
@@ -28,7 +28,7 @@ python -m oat.experiment.main \
     # other flags...
 ```
 
-## Integrating different preference oracles
+## Preference oracles
 ### Locally hosted Mosec service
 In the [main page](../README.md#usage) we have shown the usage of `pairrm` as the preference oracle, which runs in the same process as the actor. Next, we give an example of training `online DPO` with **a preference oracle served using [Mosec](https://github.com/mosecorg/mosec)**.
 
@@ -124,7 +124,7 @@ python -m oat.experiment.main \
 +   --wb-run-name 6.9b_skywork_dpo_online
 ```
 
-## Implementing diverse active exploration algorithms
+## LLM exploration algorithms
 
 All examples below assume a locally served preference oracle as done in the [section above](#locally-hosted-mosec-service).
 
