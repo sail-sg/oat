@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/logo.png" height="230" alt="OAT" />
+  <img src="https://private-user-images.githubusercontent.com/38581401/380485232-6fa9045a-8f70-495b-bdec-2e4664044c41.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzA3NzA3NjEsIm5iZiI6MTczMDc3MDQ2MSwicGF0aCI6Ii8zODU4MTQwMS8zODA0ODUyMzItNmZhOTA0NWEtOGY3MC00OTViLWJkZWMtMmU0NjY0MDQ0YzQxLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDExMDUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQxMTA1VDAxMzQyMVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWI4NTEzYjVhMzY2YWI5MjZlMjhkNGVkYjcwN2M1NTY1Y2Y2M2UyYjY3Mjc1MTYzYmYzZmQwYThmMWU0YTc2MjkmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.cn8rX_LZ-LKD1Z1zA_JBvYZJyVWIN4S9zWleT3XZu9Q" height="230" alt="OAT" />
 </p>
 
 [![PyPI - Version](https://img.shields.io/pypi/v/oat-llm.svg)](https://pypi.org/project/oat-llm)
@@ -103,9 +103,8 @@ python -m oat.experiment.main \
 +   --wb-run-name 1b_pairrm_simpo_sea
 ```
 
-    
 <p align="center">
-  <img src="./assets/example_result.png" height="300" alt="OAT" />
+  <img src="https://private-user-images.githubusercontent.com/38581401/382972481-590b5318-56a5-4103-b937-1f05ffb90ebc.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzA3NzA3NjEsIm5iZiI6MTczMDc3MDQ2MSwicGF0aCI6Ii8zODU4MTQwMS8zODI5NzI0ODEtNTkwYjUzMTgtNTZhNS00MTAzLWI5MzctMWYwNWZmYjkwZWJjLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDExMDUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQxMTA1VDAxMzQyMVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTY1YzRkYTI1MGZiMzhkOTUxMDVkZDRiODBlYjYwMGJkYjIxOTA0OTlkYjRhZGZjMGM3M2E2YzYyYzA1ZWM3NjUmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.myLWPt2qvHyrdvaQP1A57J-BTvgLt0TdY8BhPYIugNA" height="300" alt="OAT" />
 </p>
 
 Check out this [tutorial](./examples/) for more examples regarding:
@@ -117,11 +116,11 @@ Check out this [tutorial](./examples/) for more examples regarding:
 Our system benchmarking compares oat with the online DPO implementation from [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer). We use the following configurations for oat, and show the benchmarking results below.
 
 <p align="center">
-  <img src="./assets/system_configs.png" height="300" alt="OAT" />
+  <img src="https://private-user-images.githubusercontent.com/38581401/382674288-95021ec7-b79e-47f8-8f46-32f2f4212a36.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzA3NzA3NjEsIm5iZiI6MTczMDc3MDQ2MSwicGF0aCI6Ii8zODU4MTQwMS8zODI2NzQyODgtOTUwMjFlYzctYjc5ZS00N2Y4LThmNDYtMzJmMmY0MjEyYTM2LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDExMDUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQxMTA1VDAxMzQyMVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTFjYzI2M2I2ZTUwYzUzMDA3YmViNzM5MjFkMjUwZGQyYjMyZDc1ZDAwNzAzMzNjNjJiN2EyNzQ3OGNjNmVmNWImWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.bcBfZA2ZQu0naU7j36xfs5392CastXoKDODR3iARjqM" height="300" alt="OAT" />
 </p>
 
 <p align="center">
-  <img src="./assets/bench_results.png" height="300" alt="OAT" />
+  <img src="https://private-user-images.githubusercontent.com/38581401/382674313-2d145308-2983-4ee2-9413-61c083933327.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzA3NzA3NjEsIm5iZiI6MTczMDc3MDQ2MSwicGF0aCI6Ii8zODU4MTQwMS8zODI2NzQzMTMtMmQxNDUzMDgtMjk4My00ZWUyLTk0MTMtNjFjMDgzOTMzMzI3LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDExMDUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQxMTA1VDAxMzQyMVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTM5NmM4MDRhNjg4YjVhN2JmZTFlNmU1YmQ3NzZhNjc1MDNkNzBkYzIzMDMwNDg1ZTI5NmUxZTRlMmM3Zjc1ZWQmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.ljiO86Q6Pl3cgEK04PlKD3AN2VDV1UrXoTyx3vXFUdo" height="300" alt="OAT" />
 </p>
 
 Please refer to the Appendix C of our paper for detailed benchmarking methods and discussion on the results.
