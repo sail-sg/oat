@@ -153,6 +153,7 @@ class APLLearner(DAPLearner):
             self.eval_and_log({}, eval=True)
 
         self.steps = 1
+        self.gradient_update_st = time.time()
         for p_ep in range(self.args.num_prompt_epoch):
             if isinstance(self.prompts_dataloader.sampler, DistributedSampler):
                 self.prompts_dataloader.sampler.set_epoch(p_ep)
