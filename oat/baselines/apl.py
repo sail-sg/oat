@@ -43,6 +43,10 @@ from oat.utils.ipc import DataID, PlasmaShmClient
 class APLActor(actor.Actor):
     """Sample a large batch and filter with entropy and reward margin."""
 
+    def __init__(self, ipc_server, vllm_args, args: actor.OATArgs) -> None:
+        super().__init__(ipc_server, vllm_args, args)
+        self.sampling_params.logprobs = 1
+
     def generate_and_entropy_filter(self, prompts: List[str]) -> DataID:
         assert not self.eval_mode
         # Generate.
@@ -266,7 +270,8 @@ def implicit_reward_filtering_response_only(
     for i, output in enumerate(outputs):
         # for each prompt
         prompt_response_ids = [
-            torch.tensor(output.prompt_token_ids + o.token_ids) for o in output.outputs
+            torch.tensor(output.prompt_token_ids + list(o.token_ids))
+            for o in output.outputs
         ]
         prompt_response_masks = [torch.ones_like(ids) for ids in prompt_response_ids]
 

@@ -49,11 +49,11 @@ For more details, please check out our [paper](https://arxiv.org/abs/2411.01493)
 
 ## Installation
 In a python environment with supported versions (`>=3.8, <=3.10`), you could install oat via PyPI:
-```console
+```shell
 pip install vllm==0.6.2 && pip install oat-llm
 ```
 Or you could also install in "editable" mode for local development:
-```console
+```shell
 git clone git@github.com:sail-sg/oat.git
 cd oat
 pip install vllm==0.6.2 && pip install -e .
