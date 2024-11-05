@@ -7,9 +7,9 @@ This document provides extensive examples demonstrating how to use oat 🌾 to (
   - [Scale up with remote Mosec service](#scale-up-with-remote-mosec-service)
 - [Implementing diverse active exploration algorithms](#implementing-diverse-active-exploration-algorithms)
   - [\[SEA\] Sample-Efficient Alignment for LLMs](#sea-sample-efficient-alignment-for-llms)
+  - [\[EE4LLM\] Efficient Exploration for LLMs](#ee4llm-efficient-exploration-for-llms)
   - [\[APL\] Active Preference Learning for Large Language Models](#apl-active-preference-learning-for-large-language-models)
   - [\[XPO\] Exploratory Preference Optimization](#xpo-exploratory-preference-optimization)
-  - [\[EE4LLM\] Efficient Exploration for LLMs](#ee4llm-efficient-exploration-for-llms)
 
 
 First of all, you could always check all supported arguments by running:
@@ -125,17 +125,18 @@ python -m oat.experiment.main \
 ```
 
 ## Implementing diverse active exploration algorithms
+
+All examples below assume a locally served preference oracle as done in the [section above](#locally-hosted-mosec-service).
+
 ### [SEA] Sample-Efficient Alignment for LLMs
 
 > [!NOTE]
-> Paper: https://arxiv.org/pdf/2411.01493
+> Paper: https://arxiv.org/pdf/2411.01493.
 > 
-> You can find a thorough comparison between all algorithms implemented in this section in our paper.
+> You can find a thorough comparison between all algorithms mentioned in this section in our paper.
 
-Oat natively supports SEA using the `oat.experiment.main` entry script. For example, running `SEA DPO` with a Mosec-served preference oracle:
+Oat natively supports SEA using the `oat.experiment.main` entry script:
 ```diff
-# Make sure the Mosec service is already available.
-
 python -m oat.experiment.main \
     --flash-attn \
     --gradient-checkpointing \
@@ -171,11 +172,53 @@ python -m oat.experiment.main \
     --wb-run-name 1b_skywork_dpo_sea
 ```
 
+### [EE4LLM] Efficient Exploration for LLMs
+
+> [!NOTE]
+> Paper: https://arxiv.org/pdf/2402.00396
+
+Run EE4LLM by disabling policy learning and enabling best-of-n sampling for evaluation:
+```diff
+python -m oat.experiment.main \
+    --flash-attn \
+    --gradient-checkpointing \
+    --rnd-seed \
+    --gpus 8 \
+    --dap-algo DPO \
+    --beta 0.1 \
+    --reward-oracle remote \
+    --remote-rm-url http://0.0.0.0:8000 \
+    --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
+    --prompt-data lkevinzc/tldr-with-sft-reference \
+    --input-key prompt \
+    --output-key pythia-1b-reference \
+    --sync-params-every 1 \
+    --max-train 50000 \
+    --generate-max-length 53 \
+    --train-batch-size 128 \
+    --rollout-batch-size 128 \
+    --rollout-batch-size-per-device 32 \
+    --pi-buffer-maxlen-per-device 32 \
+    --train-batch-size-per-device 8 \
+    --eval-steps 20 \
++   --num-samples 20 \
++   --learn-rm \
++   --learn_rm_only \
++   --exp-method EnnEETS \
++   --exp_rnd_sample \
++   --online_evaluation \
++   --best_of_n_eval \
++   --num_bon 10 \
+    --use-wb \
+    --wb-run-name 1b_skywork_dpo_online
+```
+
 ### [APL] Active Preference Learning for Large Language Models
 
 > [!NOTE]
 > Paper: https://arxiv.org/pdf/2402.08114
 
+APL can be implemented by inheriting oat's learner and actor classes ([codes](../oat/baselines/apl.py)). Run it with a dedicated entry script:
 ```diff
 + python -m oat.experiment.run_apl \
     --flash-attn \
@@ -213,6 +256,7 @@ python -m oat.experiment.main \
 > [!NOTE]
 > Paper: https://arxiv.org/pdf/2405.21046
 
+XPO can be implemented by inheriting oat's learner and actor classes ([codes](../oat/baselines/xpo.py)). Run it with a dedicated entry script:
 ```diff
 + python -m oat.experiment.run_xpo \
     --flash-attn \
@@ -238,44 +282,4 @@ python -m oat.experiment.main \
     --eval-steps 20 \
     --use-wb \
 +   --wb-run-name 1b_skywork_xpo
-```
-
-### [EE4LLM] Efficient Exploration for LLMs
-
-> [!NOTE]
-> Paper: https://arxiv.org/pdf/2402.00396
-
-```diff
-python -m oat.experiment.main \
-    --flash-attn \
-    --gradient-checkpointing \
-    --rnd-seed \
-    --gpus 8 \
-    --dap-algo DPO \
-    --beta 0.1 \
-    --reward-oracle remote \
-    --remote-rm-url http://0.0.0.0:8000 \
-    --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
-    --prompt-data lkevinzc/tldr-with-sft-reference \
-    --input-key prompt \
-    --output-key pythia-1b-reference \
-    --sync-params-every 1 \
-    --max-train 50000 \
-    --generate-max-length 53 \
-    --train-batch-size 128 \
-    --rollout-batch-size 128 \
-    --rollout-batch-size-per-device 32 \
-    --pi-buffer-maxlen-per-device 32 \
-    --train-batch-size-per-device 8 \
-    --eval-steps 20 \
-+   --num-samples 20 \
-+   --learn-rm \
-+   --learn_rm_only \
-+   --exp-method EnnEETS \
-+   --exp_rnd_sample \
-+   --online_evaluation \
-+   --best_of_n_eval \
-+   --num_bon 10 \
-    --use-wb \
-    --wb-run-name 1b_skywork_dpo_online
 ```
