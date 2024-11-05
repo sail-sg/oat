@@ -80,7 +80,7 @@ python -m oat.experiment.main \
 ```
 This example completes in **less than two hours on two A100 GPUs**!
 
-To run an `offline SimPO` for comparison, we disable weights synchronization from the learner to actors by adjusting the `sync-params-every` argument:
+To run an `offline SimPO` baseline for comparison, we disable weights synchronization from the learner to actors by adjusting the `sync-params-every` argument:
 ```diff
 python -m oat.experiment.main \
     --gpus 2 \
@@ -101,7 +101,7 @@ python -m oat.experiment.main \
 +   --wb-run-name 1b_pairrm_simpo_offline
 ```
 
-Finally, we run `SEA SimPO` (with $\gamma=1$) to verify its capability of sample-efficient alignment. We now utilize 4 GPUs and reduce per-device training batch size to accommodate learning an additional epistemic reward model. We also adjust per-device rollout batch size and buffer length accordingly to make the global size 128. Besides, 10 response candidates are generated for exploration by BAI Thompson sampling.
+Finally, we run `SEA SimPO` (with $\gamma=1$) to verify its capability of sample-efficient alignment. This experiment utilizes 4 GPUs, with a reduced per-device training batch size to accommodate the training of an additional epistemic reward model. The per-device rollout batch size and buffer length are adjusted to ensure a global batch size of 128. Additionally, 10 response candidates are generated for exploration using BAI Thompson sampling.
 ```diff
 python -m oat.experiment.main \
 -   --gpus 2 \
@@ -131,13 +131,13 @@ python -m oat.experiment.main \
   <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e23f40d33e8a2fa4220e8122c152b356084b8afb/example_result.png" height="330"/>
 </p>
 
-Check out this [tutorial](./examples/) for more examples regarding:
-* Different direct optimizers including DPO, IPO, and SLiC.
-* Various modes of preference oracles such as remote reward models and GPT-as-a-judge.
-* Other LLM exploration algorithms, e.g., APL, XPO, and EE4LLM.
+Check out this [tutorial](./examples/) for more examples covering:
+* Various direct optimizers, including DPO, IPO, and SLiC.
+* Different modes of preference oracles, such as remote reward models and GPT-as-a-judge.
+* Additional LLM exploration algorithms, e.g., APL, XPO, and EE4LLM.
 
 ## Benchmarking
-Our system benchmarking compares oat with the online DPO implementation from [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer). We use the following configurations for oat, and show the benchmarking results below.
+Our system benchmarking compares oat with the online DPO implementation from [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer). Below, we outline the configurations used for oat and present the benchmarking results.
 
 <p align="center">
   <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e23f40d33e8a2fa4220e8122c152b356084b8afb/system_configs.png" height="320"/>
@@ -147,7 +147,7 @@ Our system benchmarking compares oat with the online DPO implementation from [hu
   <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e23f40d33e8a2fa4220e8122c152b356084b8afb/bench_results.png" height="300" alt="OAT" />
 </p>
 
-Please refer to the [Appendix C of our paper](https://arxiv.org/pdf/2411.01493#page=17.64) for detailed benchmarking methods and discussion on the results.
+Please refer to [Appendix C of our paper](https://arxiv.org/pdf/2411.01493#page=17.64) for a detailed discussion of the benchmarking methods and results.
 
 ## Citation
 If you find this work useful for your research, please consider citing
@@ -166,10 +166,11 @@ If you find this work useful for your research, please consider citing
 `oat` is distributed under the terms of the [Apache2](https://www.apache.org/licenses/LICENSE-2.0) license.
 
 ## Acknowledgement
-We thank the following awesome projects which oat benefits from:
+We thank the following awesome projects that have contributed to the development of oat:
 * [vLLM](https://github.com/vllm-project/vllm)
 * [DeepSpeed](https://github.com/microsoft/DeepSpeed)
 * [Mosec](https://github.com/mosecorg/mosec)
+* [launchpad](https://github.com/google-deepmind/launchpad)
 * [OpenRLHF](https://github.com/OpenRLHF/OpenRLHF)
 
 ## Disclaimer

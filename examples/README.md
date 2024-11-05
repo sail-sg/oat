@@ -25,6 +25,7 @@ python -m oat.experiment.main -h
 python -m oat.experiment.main \
 +   --dap-algo IPO \
 +   --beta 0.1 \
+    # other flags...
 ```
 
 ## Integrating different preference oracles
