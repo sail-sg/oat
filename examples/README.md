@@ -1,4 +1,4 @@
-This document provides extensive examples demonstrating how to use `oat` to (1) run various direct optimizers, (2) integrate different preference oracles, and (3) implement diverse active exploration algorithms. All the examples are tested on a machine with 8 A100 GPUs, with training logs publicly available on [wandb](https://wandb.ai/lkevinzc/oat-llm/) for reproducibility.
+This document provides extensive examples demonstrating how to use oat 🌾 to (1) run various direct optimizers, (2) integrate different preference oracles, and (3) implement diverse active exploration algorithms. All the examples are tested on a machine with 8 A100 GPUs, with training logs publicly available on [wandb](https://wandb.ai/lkevinzc/oat-llm/) for reproducibility.
 
 - [Running various direct optimizers](#running-various-direct-optimizers)
 - [Integrating different preference oracles](#integrating-different-preference-oracles)
@@ -7,6 +7,8 @@ This document provides extensive examples demonstrating how to use `oat` to (1) 
   - [Scale up with remote Mosec service](#scale-up-with-remote-mosec-service)
 - [Implementing diverse active exploration algorithms](#implementing-diverse-active-exploration-algorithms)
   - [\[SEA\] Sample-Efficient Alignment for LLMs](#sea-sample-efficient-alignment-for-llms)
+  - [\[APL\] Active Preference Learning for Large Language Models](#apl-active-preference-learning-for-large-language-models)
+  - [\[XPO\] Exploratory Preference Optimization](#xpo-exploratory-preference-optimization)
 
 
 First of all, you could always check all supported arguments by running:
@@ -91,12 +93,42 @@ python -m oat.experiment.main \
 We enabled collocation of learner and actor workers given the abundant GPU memory, thanks to the fact that the preference oracle (GPT) runs on OpenAI's side and almost takes no resource on our machines.
 
 ### Scale up with remote Mosec service
-Likewise, we can also host our own remote server for any reward model on a separate machine, utilizing more compute to train larger models.
+Likewise, we can also host our own remote server for any reward model *on a separate machine*, utilizing more compute to train larger models. With a Kubernetes-managed cluster, you could follow [these steps](../k8s/) to serve a remote preference oracle at `http://remote-rm`.
+
+```diff
+python -m oat.experiment.main \
+    --flash-attn \
+    --gradient-checkpointing \
+    --rnd-seed \
+    --gpus 8 \
+    --dap-algo DPO \
+    --beta 0.1 \
+    --reward-oracle remote \
++   --remote-rm-url http://remote-rm \
++   --pretrain trl-lib/pythia-6.9b-deduped-tldr-sft \
+    --prompt-data lkevinzc/tldr-with-sft-reference \
+    --input-key prompt \
++   --output-key pythia-6.9b-reference \
+    --sync-params-every 1 \
+    --max-train 50000 \
+    --generate-max-length 53 \
+    --train-batch-size 128 \
+    --rollout-batch-size 128 \
+    --rollout-batch-size-per-device 32 \
+    --pi-buffer-maxlen-per-device 32 \
+    --train-batch-size-per-device 8 \
+    --eval-steps 20 \
+    --use-wb \
++   --wb-run-name 6.9b_skywork_dpo_online
+```
 
 ## Implementing diverse active exploration algorithms
 ### [SEA] Sample-Efficient Alignment for LLMs
 
-We natively support SEA using the `main` entry script. For example, running `SEA DPO` with a Mosec-served preference oracle:
+> [!NOTE]
+> Paper: https://arxiv.org/pdf/2411.01493
+
+Oat natively supports SEA using the `oat.experiment.main` entry script. For example, running `SEA DPO` with a Mosec-served preference oracle:
 ```diff
 # Make sure the Mosec service is already available.
 
@@ -133,4 +165,72 @@ python -m oat.experiment.main \
 +   --max-model-data-ratio 0.3 \
     --use-wb \
     --wb-run-name 1b_skywork_dpo_sea
+```
+
+### [APL] Active Preference Learning for Large Language Models
+
+> [!NOTE]
+> Paper: https://arxiv.org/pdf/2402.08114
+
+```diff
++ python -m oat.experiment.run_apl \
+    --flash-attn \
+    --gradient-checkpointing \
+    --rnd-seed \
+    --gpus 8 \
+    --dap-algo DPO \
+    --beta 0.1 \
+    --reward-oracle remote \
+    --remote-rm-url http://0.0.0.0:8000 \
+    --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
+    --prompt-data lkevinzc/tldr-with-sft-reference \
+    --input-key prompt \
+    --output-key pythia-1b-reference \
+    --sync-params-every 1 \
+    --max-train 50000 \
+    --generate-max-length 53 \
+    --train-batch-size 128 \
+    --rollout-batch-size 128 \
+    --rollout-batch-size-per-device 32 \
+    --pi-buffer-maxlen-per-device 32 \
+    --train-batch-size-per-device 8 \
+    --eval-steps 20 \
++   --num_prompt_epoch 4 \
++   --max_train 100000 \
++   --max_step_adjustment 0.125 \
++   --num_samples 8 \
+    --use-wb \
++   --wb-run-name 1b_skywork_apl
+```
+
+### [XPO] Exploratory Preference Optimization
+
+> [!NOTE]
+> Paper: https://arxiv.org/pdf/2405.21046
+
+```diff
++ python -m oat.experiment.run_xpo \
+    --flash-attn \
+    --gradient-checkpointing \
+    --rnd-seed \
+    --gpus 8 \
+    --dap-algo DPO \
+    --beta 0.1 \
+    --reward-oracle remote \
+    --remote-rm-url http://0.0.0.0:8000 \
+    --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
+    --prompt-data lkevinzc/tldr-with-sft-reference \
+    --input-key prompt \
+    --output-key pythia-1b-reference \
+    --sync-params-every 1 \
+    --max-train 50000 \
+    --generate-max-length 53 \
+    --train-batch-size 128 \
+    --rollout-batch-size 128 \
+    --rollout-batch-size-per-device 32 \
+    --pi-buffer-maxlen-per-device 32 \
+    --train-batch-size-per-device 8 \
+    --eval-steps 20 \
+    --use-wb \
++   --wb-run-name 1b_skywork_xpo
 ```

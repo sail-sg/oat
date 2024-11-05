@@ -4,9 +4,14 @@
 
 [![PyPI - Version](https://img.shields.io/pypi/v/oat-llm.svg)](https://pypi.org/project/oat-llm)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/oat-llm.svg)](https://pypi.org/project/oat-llm)
+<a href="">
+<img src="https://img.shields.io/github/license/sail-sg/oat" alt="License">
+<a href="https://arxiv.org/pdf/2411.01493">
+<img src="https://img.shields.io/badge/arXiv-2411.01493-b31b1b.svg" alt="Arxiv">
 
 ## Introduction
-Oat 🌾 is a simple yet efficient system for developing online LLM alignment algorithms. Key features include:
+
+Oat 🌾 is a simple yet efficient system for running online LLM alignment algorithms. Key features include:
 
 * **High Efficiency**: Oat implements a distributed *Actor-Learner-Oracle* architecture, with each component being optimized using state-of-the-art tools:
   * `Actor`: Powered by [vLLM](https://github.com/vllm-project/vllm) for accelerated online response sampling.
