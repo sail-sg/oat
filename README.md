@@ -37,7 +37,7 @@ pip install vllm==0.6.2 && pip install -e .
 
 ## Usage
 Below is an example to align a `1-B Pythia` SFT Model on the `tl;dr` dataset using `online SimPO` with `PairRM` as the preference oracle:
-```console
+```diff
 python -m oat.experiment.main \
     --gpus 2 \
     --collocate \
@@ -77,7 +77,7 @@ python -m oat.experiment.main \
 +   --wb-run-name 1b_pairrm_simpo_offline
 ```
 
-Finally, we run `SEA SimPO` (with $\gamma=1$) to verify its capability of sample-efficient alignment. We now utilize 4 GPUs and reduce per-device train batch size to accommodate learning an additional epistemic reward model. We also adjust per-device rollout batch size and buffer length accordingly to make the global size 128. Besides, 10 response candidates are generated for exploration by BAI Thompson sampling.
+Finally, we run `SEA SimPO` (with $\gamma=1$) to verify its capability of sample-efficient alignment. We now utilize 4 GPUs and reduce per-device training batch size to accommodate learning an additional epistemic reward model. We also adjust per-device rollout batch size and buffer length accordingly to make the global size 128. Besides, 10 response candidates are generated for exploration by BAI Thompson sampling.
 ```diff
 python -m oat.experiment.main \
 -   --gpus 2 \
@@ -104,7 +104,7 @@ python -m oat.experiment.main \
 ```
 
 <p align="center">
-  <img src="https://private-user-images.githubusercontent.com/38581401/382972481-590b5318-56a5-4103-b937-1f05ffb90ebc.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzA3NzA3NjEsIm5iZiI6MTczMDc3MDQ2MSwicGF0aCI6Ii8zODU4MTQwMS8zODI5NzI0ODEtNTkwYjUzMTgtNTZhNS00MTAzLWI5MzctMWYwNWZmYjkwZWJjLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDExMDUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQxMTA1VDAxMzQyMVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTY1YzRkYTI1MGZiMzhkOTUxMDVkZDRiODBlYjYwMGJkYjIxOTA0OTlkYjRhZGZjMGM3M2E2YzYyYzA1ZWM3NjUmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.myLWPt2qvHyrdvaQP1A57J-BTvgLt0TdY8BhPYIugNA" height="300" alt="OAT" />
+  <img src="https://private-user-images.githubusercontent.com/38581401/382972481-590b5318-56a5-4103-b937-1f05ffb90ebc.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzA3NzA3NjEsIm5iZiI6MTczMDc3MDQ2MSwicGF0aCI6Ii8zODU4MTQwMS8zODI5NzI0ODEtNTkwYjUzMTgtNTZhNS00MTAzLWI5MzctMWYwNWZmYjkwZWJjLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDExMDUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQxMTA1VDAxMzQyMVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTY1YzRkYTI1MGZiMzhkOTUxMDVkZDRiODBlYjYwMGJkYjIxOTA0OTlkYjRhZGZjMGM3M2E2YzYyYzA1ZWM3NjUmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.myLWPt2qvHyrdvaQP1A57J-BTvgLt0TdY8BhPYIugNA" height="330"/>
 </p>
 
 Check out this [tutorial](./examples/) for more examples regarding:
@@ -116,7 +116,7 @@ Check out this [tutorial](./examples/) for more examples regarding:
 Our system benchmarking compares oat with the online DPO implementation from [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer). We use the following configurations for oat, and show the benchmarking results below.
 
 <p align="center">
-  <img src="https://private-user-images.githubusercontent.com/38581401/382674288-95021ec7-b79e-47f8-8f46-32f2f4212a36.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzA3NzA3NjEsIm5iZiI6MTczMDc3MDQ2MSwicGF0aCI6Ii8zODU4MTQwMS8zODI2NzQyODgtOTUwMjFlYzctYjc5ZS00N2Y4LThmNDYtMzJmMmY0MjEyYTM2LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDExMDUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQxMTA1VDAxMzQyMVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTFjYzI2M2I2ZTUwYzUzMDA3YmViNzM5MjFkMjUwZGQyYjMyZDc1ZDAwNzAzMzNjNjJiN2EyNzQ3OGNjNmVmNWImWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.bcBfZA2ZQu0naU7j36xfs5392CastXoKDODR3iARjqM" height="300" alt="OAT" />
+  <img src="https://private-user-images.githubusercontent.com/38581401/382674288-95021ec7-b79e-47f8-8f46-32f2f4212a36.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzA3NzA3NjEsIm5iZiI6MTczMDc3MDQ2MSwicGF0aCI6Ii8zODU4MTQwMS8zODI2NzQyODgtOTUwMjFlYzctYjc5ZS00N2Y4LThmNDYtMzJmMmY0MjEyYTM2LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDExMDUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQxMTA1VDAxMzQyMVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTFjYzI2M2I2ZTUwYzUzMDA3YmViNzM5MjFkMjUwZGQyYjMyZDc1ZDAwNzAzMzNjNjJiN2EyNzQ3OGNjNmVmNWImWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.bcBfZA2ZQu0naU7j36xfs5392CastXoKDODR3iARjqM" height="320"/>
 </p>
 
 <p align="center">
