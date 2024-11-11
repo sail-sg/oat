@@ -258,8 +258,8 @@ class Actor:
 
         chosen = 1 - binary_feedback
 
-        # Model-based rollout for sampling efficiency.
-        # (Mixed preference learning)
+        # Model-based rollout for 1) Dyna - sample efficiency; 2) Better argmax r approximation.
+        # (Mixed preference learning: Section 4.2.3 of https://arxiv.org/pdf/2411.01493)
         if self.model_rollout:
             # Record metric and overwrite label.
             model_data = np.array(results.is_model_data)
