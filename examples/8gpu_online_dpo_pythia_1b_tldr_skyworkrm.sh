@@ -25,7 +25,7 @@ python -m oat.experiment.main \
     --gpus 8 \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \

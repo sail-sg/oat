@@ -12,7 +12,7 @@ MOSEC_LOG_LEVEL=debug python -m oat.oracles.remote.server
 
 # 3) With this being set up, start your experiment:
 python -m oat.experiment.main \
-    --reward_oracle remote \
+    --preference_oracle remote \
     --remote_rm_url http://remote-rm \
     # other flags...
 ```

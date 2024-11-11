@@ -19,7 +19,7 @@ Oat 🌾 is a simple yet efficient system for running online LLM alignment algor
   * `Actor`: Utilizes [vLLM](https://github.com/vllm-project/vllm) for accelerated online response sampling.
   * `Learner`: Leverages [DeepSpeed](https://github.com/microsoft/DeepSpeed) ZeRO strategies to enhance memory efficiency.
   * `Oracle`: Hosted by [Mosec](https://github.com/mosecorg/mosec) as a remote service, supporting dynamic batching, data parallelism and pipeline parallelism.
-* **Simplified Workflow**: Oat simplifies the experimental pipeline of LLM alignment. With an `Oracle` served online, we can flexibly query it for preference data labeling as well as anytime model evaluation. All you need is to launch experiments and monitor real-time learning curves (e.g., win rate) on [wandb](https://wandb.ai/lkevinzc/oat-llm) — no need for manual training, checkpointing and loading for evaluation.
+* **Simplified Workflow**: Oat simplifies the experimental pipeline of LLM alignment. With an `Oracle` served online, we can flexibly query it for preference data labeling as well as anytime model evaluation. All you need is to launch experiments and monitor real-time learning curves (e.g., win rate) on wandb (see [reproduced results](https://wandb.ai/lkevinzc/oat-llm)) — no need for manual training, checkpointing and loading for evaluation.
 * **Oracle Simulation**: Oat provides simulated preference oracles in various modes.
   * Lightweight reward models run within the actor's process, enabling quick testing on as few as two GPUs.
   * Larger and more capable reward models can be served remotely, harnessing additional compute and memory resources.
@@ -71,7 +71,7 @@ python -m oat.experiment.main \
     --collocate \
     --dap-algo SimPO \
     --beta 2 \
-    --reward-oracle pairrm \
+    --preference-oracle pairrm \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
     --output_key pythia-1b-reference \
@@ -91,7 +91,7 @@ python -m oat.experiment.main \
     --collocate \
     --dap-algo SimPO \
     --beta 2 \
-    --reward-oracle pairrm \
+    --preference-oracle pairrm \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
     --output_key pythia-1b-reference \
@@ -112,7 +112,7 @@ python -m oat.experiment.main \
 +   --gpus 4 \
     --dap-algo SimPO \
     --beta 2 \
-    --reward-oracle pairrm \
+    --preference-oracle pairrm \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
     --output_key pythia-1b-reference \

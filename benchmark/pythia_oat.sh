@@ -29,7 +29,7 @@ python -m oat.experiment.main \
     --collocate \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \
     --remote-rm-client-workers 8 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
@@ -64,7 +64,7 @@ python -m oat.experiment.main \
     --gpus 8 \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \
     --remote-rm-client-workers 8 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
@@ -101,7 +101,7 @@ python -m oat.experiment.main \
     --zero-stage 2 \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \
     --remote-rm-client-workers 8 \
     --pretrain trl-lib/pythia-2.8b-deduped-tldr-sft \
@@ -141,7 +141,7 @@ python -m oat.experiment.main \
     --adam-offload \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \
     --remote-rm-client-workers 8 \
     --pretrain trl-lib/pythia-6.9b-deduped-tldr-sft \

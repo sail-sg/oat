@@ -19,7 +19,7 @@ python -m oat.experiment.main \
     --collocate \
     --dap-algo SimPO \
     --beta 2 \
-    --reward-oracle pairrm \
+    --preference-oracle pairrm \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
     --input-key prompt \

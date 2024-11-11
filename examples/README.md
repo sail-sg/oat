@@ -45,7 +45,7 @@ python -m oat.experiment.main \
     --gpus 8 \
     --dap-algo DPO \
     --beta 0.1 \
-+   --reward-oracle remote \
++   --preference-oracle remote \
 +   --remote-rm-url http://0.0.0.0:8000 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
@@ -75,7 +75,7 @@ python -m oat.experiment.main \
 +   --collocate \
     --dap-algo DPO \
     --beta 0.1 \
-+   --reward_oracle gpt-4o-mini-2024-07-18 \
++   --preference_oracle gpt-4o-mini-2024-07-18 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
     --input-key prompt \
@@ -105,7 +105,7 @@ python -m oat.experiment.main \
     --gpus 8 \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
 +   --remote-rm-url http://remote-rm \
 +   --pretrain trl-lib/pythia-6.9b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
@@ -144,7 +144,7 @@ python -m oat.experiment.main \
     --gpus 8 \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
@@ -186,7 +186,7 @@ python -m oat.experiment.main \
     --gpus 8 \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
@@ -227,7 +227,7 @@ APL can be implemented by inheriting oat's learner and actor classes ([codes](..
     --gpus 8 \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
@@ -265,7 +265,7 @@ XPO can be implemented by inheriting oat's learner and actor classes ([codes](..
     --gpus 8 \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward-oracle remote \
+    --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \

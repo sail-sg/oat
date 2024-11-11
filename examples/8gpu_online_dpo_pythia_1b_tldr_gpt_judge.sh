@@ -19,7 +19,7 @@ python -m oat.experiment.main \
     --gpus 8 \
     --dap-algo DPO \
     --beta 0.1 \
-    --reward_oracle gpt-4o-mini-2024-07-18 \
+    --preference-oracle gpt-4o-mini-2024-07-18 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
     --input-key prompt \

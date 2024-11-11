@@ -70,15 +70,15 @@ class Actor:
         # ###################################
         # ####    Oracle Reward Model    ####
         # ###################################
-        oracle_cls = oracles.get_cls(args.reward_oracle)
-        logging.info(f"Using reward oracle {args.reward_oracle} {oracle_cls}")
+        oracle_cls = oracles.get_cls(args.preference_oracle)
+        logging.info(f"Using reward oracle {args.preference_oracle} {oracle_cls}")
         self.oracle = oracle_cls(
-            reward_model_path=args.reward_oracle,
+            reward_model_path=args.preference_oracle,
             tokenizer_path=args.pretrain,
             remote_rm_url=args.remote_rm_url,  # Only for remote RM.
             max_workers=args.remote_rm_client_workers,  # Only for remote RM.
         )
-        self.reward_oracle_batch_size = args.reward_oracle_batch_size
+        self.preference_oracle_batch_size = args.preference_oracle_batch_size
 
         # ###################################
         # ####        Exploration        ####
@@ -171,7 +171,7 @@ class Actor:
                 prompts,
                 responses,
                 references,
-                batch_size=self.reward_oracle_batch_size,
+                batch_size=self.preference_oracle_batch_size,
                 return_probs=True,
                 disable_tqdm=True,
             )
@@ -184,7 +184,7 @@ class Actor:
             prompts,
             [candidates[i][0] for i in range(len(prompts))],
             references,
-            batch_size=self.reward_oracle_batch_size,
+            batch_size=self.preference_oracle_batch_size,
             return_probs=True,
             disable_tqdm=True,
         )
@@ -192,7 +192,7 @@ class Actor:
             prompts,
             [candidates[i][1] for i in range(len(prompts))],
             references,
-            batch_size=self.reward_oracle_batch_size,
+            batch_size=self.preference_oracle_batch_size,
             return_probs=True,
             disable_tqdm=True,
         )
@@ -244,7 +244,7 @@ class Actor:
             prompts,
             [candidates[i][0] for i in range(len(prompts))],
             [candidates[i][1] for i in range(len(prompts))],
-            batch_size=self.reward_oracle_batch_size,
+            batch_size=self.preference_oracle_batch_size,
             return_probs=True,
             disable_tqdm=True,
         )
