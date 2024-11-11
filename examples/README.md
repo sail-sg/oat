@@ -75,7 +75,7 @@ python -m oat.experiment.main \
 +   --collocate \
     --dap-algo DPO \
     --beta 0.1 \
-+   --preference_oracle gpt-4o-mini-2024-07-18 \
++   --preference-oracle gpt-4o-mini-2024-07-18 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
     --prompt-data lkevinzc/tldr-with-sft-reference \
     --input-key prompt \
@@ -95,7 +95,7 @@ python -m oat.experiment.main \
 We enabled collocation of learner and actor workers given the abundant GPU memory, thanks to the fact that the preference oracle (GPT) runs on OpenAI's side and almost takes no resource on our machines.
 
 ### Scale up with remote Mosec service
-Likewise, we can also host our own remote server for any reward model *on a separate machine*, utilizing more compute to train larger models. With a Kubernetes-managed cluster, you could follow [these steps](../k8s/) to serve a remote preference oracle at `http://remote-rm`.
+Likewise, we can also host our own remote server for any reward model *on a separate machine*, utilizing more compute to train larger models. With a Kubernetes-managed cluster, you could follow [these steps](../k8s/) to serve a remote preference oracle at `http://remote-rm`. Otherwise, you may need to obtain the remote machine's IP address (e.g., 10.0.0.1), and set `--remote-rm-url http://10.0.0.1:8000` accordingly.
 
 ```diff
 python -m oat.experiment.main \
