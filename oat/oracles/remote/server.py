@@ -37,7 +37,11 @@ MODEL_CONFIGS = {
     "Skywork/Skywork-Reward-Llama-3.1-8B": {
         "attn_implementation": "flash_attention_2",
         "num_labels": 1,
-    }
+    },
+    "Skywork/Skywork-Reward-Llama-3.1-8B-v0.2": {
+        "attn_implementation": "flash_attention_2",
+        "num_labels": 1,
+    },
 }
 
 
@@ -101,7 +105,7 @@ class RewardModel(TypedMsgPackMixin, Worker):
 
 @dataclass
 class ServerArgs:
-    remote_rm_model: str = "Skywork/Skywork-Reward-Llama-3.1-8B"
+    remote_rm_model: str = "Skywork/Skywork-Reward-Llama-3.1-8B-v0.2"
     max_wait_time: int = 10
     cuda_devices: str = "all"
 

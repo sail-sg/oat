@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 PROJECT_NAME=oat
 PROJECT_PATH=oat/
-LINT_PATHS=${PROJECT_PATH} examples/ benchmark/ setup.py
+LINT_PATHS=${PROJECT_PATH} examples/ benchmark/ test setup.py
 
 check_install = python3 -c "import $(1)" || pip3 install $(1) --upgrade
 check_install_extra = python3 -c "import $(1)" || pip3 install $(2) --upgrade
