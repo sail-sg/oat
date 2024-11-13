@@ -413,9 +413,55 @@ class DeepspeedStrategy(ABC):
             state_dict = key_replace_fn(state_dict)
         unwrapped_model.load_state_dict(state_dict, strict=strict)
 
-    def save_model(self, model: nn.Module, tokenizer, output_dir, **kwargs) -> None:
+    def save_model(
+        self,
+        model: nn.Module,
+        tokenizer,
+        output_dir,
+        tag,
+        max_num=3,
+        max_mem=1000,
+        **kwargs,
+    ) -> None:
         if self.is_rank_0():
-            os.makedirs(output_dir, exist_ok=True)
+            save_dir = os.path.join(output_dir, tag)
+            os.makedirs(save_dir, exist_ok=True)
+
+            # max hard drive space limit
+            MAX_SIZE = max_mem * 1024 * 1024 * 1024
+
+            while True:
+                # Get all subdirectory and modification time
+                subdirs = [
+                    (
+                        os.path.join(output_dir, d),
+                        os.path.getmtime(os.path.join(output_dir, d)),
+                    )
+                    for d in os.listdir(output_dir)
+                    if os.path.isdir(os.path.join(output_dir, d))
+                ]
+                # Sort by modification time, oldest first
+                subdirs.sort(key=lambda x: x[1])
+                # Calculate the total size of all sub -directory
+                total_size = 0
+                for subdir, _ in subdirs:
+                    for dirpath, dirnames, filenames in os.walk(subdir):
+                        for f in filenames:
+                            fp = os.path.join(dirpath, f)
+                            total_size += os.path.getsize(fp)
+
+                # If the number of subdire directors is greater than equal to max_num or the total size is greater than max_mem, the oldest Checkpoint is deleted
+                if len(subdirs) > max_num or total_size > MAX_SIZE:
+                    oldest_dir, _ = subdirs[0]  # The oldest directory
+                    if os.path.exists(oldest_dir):  # Ensure that the directory exists
+                        shutil.rmtree(oldest_dir)  # Delete directory
+                        self.print(
+                            f"Deleted oldest ckpt {oldest_dir}"
+                        )  # The standard print function is used here
+                else:
+                    break
+
+        dist.barrier()
 
         # save model weights for ZeRO2/3
         model_to_save = self._unwrap_model(model)
@@ -455,23 +501,23 @@ class DeepspeedStrategy(ABC):
 
             # only save peft weights https://github.com/microsoft/DeepSpeed/issues/4295
             if isinstance(model_to_save, PeftModel):
-                model_to_save.save_pretrained(output_dir, **kwargs)
+                model_to_save.save_pretrained(save_dir, **kwargs)
                 if self.stage == 3:
                     torch.save(
                         get_peft_model_state_dict(model_to_save, output_state_dict),
-                        os.path.join(output_dir, "adapter_model.bin"),
+                        os.path.join(save_dir, "adapter_model.bin"),
                     )
             else:
                 # save model
                 model_to_save.save_pretrained(
-                    output_dir, state_dict=output_state_dict, **kwargs
+                    save_dir, state_dict=output_state_dict, **kwargs
                 )
 
             # save config
-            output_config_file = os.path.join(output_dir, "config.json")
+            output_config_file = os.path.join(save_dir, "config.json")
             model_to_save.config.to_json_file(output_config_file)
             # save tokenizer
-            tokenizer.save_pretrained(output_dir)
+            tokenizer.save_pretrained(save_dir)
 
             # for models not in AutoModel, copy python module files
             train_from_model_path = model_to_save.config._name_or_path
@@ -480,7 +526,7 @@ class DeepspeedStrategy(ABC):
                     if filename.endswith(".py"):
                         shutil.copy(
                             os.path.join(train_from_model_path, filename),
-                            os.path.join(output_dir, filename),
+                            os.path.join(save_dir, filename),
                         )
 
     def all_reduce(self, data, op="mean"):

@@ -38,7 +38,8 @@ class Actor:
     def __init__(self, ipc_server, vllm_args, args: OATArgs) -> None:
         self.args = args
         self.eval_mode = False
-        self.pi_beta_weights = None
+        self.generate_mode = False
+
         # Measuring the **online** performance
         self.enable_online_evaluation = args.online_evaluation
 
@@ -85,9 +86,9 @@ class Actor:
         # ###################################
         self.learning_rm = False
         if args.exp_method == "no":
-            if self.sampling_params.n == 2:
+            if self.sampling_params.n > 2:
                 logging.warn(
-                    f"trying to sample {self.sampling_params.n} responses but"
+                    f"trying to sample {self.sampling_params.n} responses but "
                     "no selection mechanism is provided"
                 )
         else:
@@ -133,9 +134,11 @@ class Actor:
         )
 
     def generate(self, prompts: List[str], sampling_params: vllm.SamplingParams):
+        self.generate_mode = True
         outputs = self.llm.generate(
             prompts, sampling_params=sampling_params, use_tqdm=False
         )
+        self.generate_mode = False
         candidates = {}
         for i in range(len(outputs)):
             # for each prompt
@@ -327,6 +330,9 @@ class Actor:
                 backend,
             )
         )
+
+    def is_generating(self):
+        return self.generate_mode
 
     def update_weight(self, name, dtype, shape, empty_cache=False):
         self._stop_remote_worker_execution_loop()

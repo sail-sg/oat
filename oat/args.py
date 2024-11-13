@@ -35,6 +35,8 @@ class OATArgs:
     collocate: bool = False
     # Size of Plasma shared memory.
     shm_size_mb: int = 5000
+    # Asynchronous training.
+    asynchronous: bool = False
 
     """Training configurations."""
     # Model name.
@@ -138,6 +140,8 @@ class OATArgs:
     """Training specs."""
     save_path: str = "./output"
     save_steps: int = -1
+    max_save_num: int = 5
+    max_save_mem: int = 1000
     logging_steps: int = 1
     num_prompt_epoch: int = 1
     train_batch_size: int = 128
@@ -218,6 +222,8 @@ def default_args_validation(args: OATArgs):
         args.max_queries = min(args.max_queries, args.max_train)
     else:
         args.max_queries = args.max_train
+    if args.asynchronous:
+        assert not args.collocate, "async training needs to disable collocation"
     args.max_model_len = (
         args.prompt_max_length
         + max(args.generate_max_length, args.eval_generate_max_length)

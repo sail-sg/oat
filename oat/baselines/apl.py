@@ -161,7 +161,7 @@ class APLLearner(DAPLearner):
         self.actor_info = {}
 
         if not self.strategy.args.debug:
-            self.eval_and_log({}, eval=True)
+            self.eval_and_log({}, eval=True, save=False)
 
         self.steps = 1
         self.gradient_update_st = time.time()
@@ -261,7 +261,7 @@ class APLLearner(DAPLearner):
                 progress_bar.update()
                 self.steps += 1
 
-        self.eval_and_log(train_info, eval=True)
+        self.eval_and_log(train_info, eval=True, save=True)
 
         if self.strategy.is_rank_0():
             self._wandb.finish()
