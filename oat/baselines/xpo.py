@@ -14,18 +14,29 @@
 
 """XPO: https://arxiv.org/pdf/2405.21046."""
 
+from dataclasses import dataclass
+
 import torch
 import vllm
 
 from oat import actor
+from oat.args import OATArgs
 from oat.learners.dap import DAPLearner
 from oat.types import DAPAlgo
+
+
+@dataclass
+class XPOArgs(OATArgs):
+    """Exploratory preference optimization arguments."""
+
+    xpo_alpha: float = 5e-6
+    xpo_offload_actor_ref: bool = False
 
 
 class XPOActor(actor.Actor):
     """Sample one response from llm and another from ref_llm."""
 
-    def __init__(self, ipc_server, vllm_args, args) -> None:
+    def __init__(self, ipc_server, vllm_args, args: XPOArgs) -> None:
         super().__init__(ipc_server, vllm_args, args)
         self.sampling_params.n = 1  # one for each llm
         self.offload_ref_model = args.xpo_offload_actor_ref
@@ -71,7 +82,7 @@ class XPOActor(actor.Actor):
 class XPOLearner(DAPLearner):
     """Additional optimism loss term: log(\pi(y_ref|x))."""
 
-    def _init(self, args, actors) -> None:
+    def _init(self, args: XPOArgs, actors) -> None:
         super()._init(args, actors)
         assert self.algo == DAPAlgo.DPO and self.ref_model is not None
         self.xpo_alpha = args.xpo_alpha

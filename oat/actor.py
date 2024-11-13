@@ -354,6 +354,7 @@ class Actor:
         logging.debug(f"Finished offloading in {time.time() - st} seconds")
 
     def notify_eval_done(self):
+        """Load cached behavior policy weights to GPU."""
         assert self.eval_mode
         logging.debug("Start loading from cpu...")
         st = time.time()

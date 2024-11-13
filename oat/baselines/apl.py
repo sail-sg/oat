@@ -21,6 +21,7 @@ finally get oracle feedback in actor.
 """
 
 import time
+from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 import launchpad as lp
@@ -33,6 +34,7 @@ from transformers import PreTrainedTokenizer
 from vllm.outputs import RequestOutput
 
 from oat import actor
+from oat.args import OATArgs
 from oat.learners.dap import DAPLearner
 from oat.model import LLM
 from oat.types import Metric, PreferenceData
@@ -40,10 +42,19 @@ from oat.utils.data import zero_pad_sequences
 from oat.utils.ipc import DataID, PlasmaShmClient
 
 
+@dataclass
+class APLArgs(OATArgs):
+    """Active preference learning arguments."""
+
+    # Fig 2b and Fig 5 both show this variant is better than random,
+    # while Fig 2b shows the learning is not robust with entropy.
+    apl_pref_certainty_only: bool = False
+
+
 class APLActor(actor.Actor):
     """Sample a large batch and filter with entropy and reward margin."""
 
-    def __init__(self, ipc_server, vllm_args, args: actor.OATArgs) -> None:
+    def __init__(self, ipc_server, vllm_args, args: APLArgs) -> None:
         super().__init__(ipc_server, vllm_args, args)
         self.sampling_params.logprobs = 1
 
