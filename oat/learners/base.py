@@ -307,14 +307,18 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 preference_data, self.actor_info = self.collector.collect_preference(
                     raw_prompts, processed_prompts, refs
                 )
+                del raw_prompts, processed_prompts
+
                 if preference_data is None:
                     # Asynchronous prefilling: only the 1st step.
                     continue
-                self.prompt_consumed += len(processed_prompts)
+                self.prompt_consumed += len(preference_data)
                 self.query_step += np.sum(
                     [not p.is_model_data for p in preference_data]
                 )
-                self.process_preference_data(preference_data, raw_prompts)
+                self.process_preference_data(
+                    preference_data, [p.prompt for p in preference_data]
+                )
 
                 if self.steps % self.update_interval == 0:
                     train_info = self.preference_learning(

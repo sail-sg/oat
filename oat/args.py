@@ -46,7 +46,7 @@ class OATArgs:
 
     # Direct alignment from preference methods.
     dap_algo: Literal["DPO", "IPO", "SLiC", "SimPO"] = "DPO"
-    # Set 1 for truly online DAP; large number for offline.
+    # Set 1 for truly online DAP; large number for offline; intermediate value for iterative.
     sync_params_every: int = 1
     # Used in DAP losses.
     beta: float = 0.1
