@@ -349,9 +349,10 @@ class Actor:
         model.default_weight_loader(params_dict[name], weight)
         del weight
 
-    def notify_eval_start(self):
+    def notify_eval_start(self, eval=True):
         """Temporarily cache the current behavior policy weights to CPU."""
-        self.eval_mode = True
+        if eval:
+            self.eval_mode = True
         logging.debug("Start offloading...")
         st = time.time()
         self.cache_model_state = tree.map_structure(
@@ -359,14 +360,16 @@ class Actor:
         )
         logging.debug(f"Finished offloading in {time.time() - st} seconds")
 
-    def notify_eval_done(self):
+    def notify_eval_done(self, eval=True):
         """Load cached behavior policy weights to GPU."""
-        assert self.eval_mode
+        if eval:
+            assert self.eval_mode
         logging.debug("Start loading from cpu...")
         st = time.time()
         self.model.load_state_dict(self.cache_model_state)
         logging.debug(f"Finished loading in {time.time() - st} seconds")
-        self.eval_mode = False
+        if eval:
+            self.eval_mode = False
 
     def _stop_remote_worker_execution_loop(self):
         # Fix error for using 2 communication group

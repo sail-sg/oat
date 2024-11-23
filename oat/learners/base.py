@@ -177,7 +177,8 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
         exp_name = args.wb_run_name + "_" + datetime.now().strftime("%m%dT%H:%M:%S")
         self.save_path = os.path.join(args.save_path, exp_name)
-        os.makedirs(self.save_path, exist_ok=True)
+        if strategy.is_rank_0():
+            os.makedirs(self.save_path, exist_ok=True)
 
         # logger
         self._wandb = None
@@ -597,7 +598,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             pd.DataFrame(
                 {
                     self.eval_input_key: prompts,
-                    self.eval_output_key: responses,
+                    "output": responses,
                     f"format_{self.eval_input_key}": processed_prompts,
                     "reference": references,
                     "generator": self.args.wb_run_name,
@@ -605,6 +606,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             ).to_json(
                 os.path.join(eval_res_path, f"{steps}.json"),
                 orient="records",
+                indent=4,
             )
             win_rate = np.mean(wins).item()
             win_rate_prob = np.mean(win_probs).item()

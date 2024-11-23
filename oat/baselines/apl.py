@@ -268,6 +268,7 @@ class APLLearner(DAPLearner):
             lp.stop()
 
 
+@torch.no_grad
 def implicit_reward_filtering_response_only(
     policy_model: LLM,
     ref_model: LLM,
@@ -332,6 +333,7 @@ def implicit_reward_filtering_response_only(
     )
 
 
+@torch.no_grad
 def implicit_reward_filtering_triplet(
     processed_prompts: List[str],
     raw_prompts: List[str],
@@ -412,6 +414,7 @@ def compute_logp(model, prompt_response_ids, prompt_response_masks, prompt_len: 
     )
 
 
+@torch.no_grad
 def get_batch_logps(
     logits: torch.FloatTensor,
     labels: torch.LongTensor,

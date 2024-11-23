@@ -64,12 +64,12 @@ class XPOActor(actor.Actor):
             else:
                 # Cache current llm's weights, load ref_llm for infer and restore
                 # original llm's weights.
-                self.notify_eval_start()
+                self.notify_eval_start(eval=False)
                 self.model.load_state_dict(self.cache_ref_model_state)
                 outputs = self.llm.generate(
                     prompts, sampling_params=sampling_params, use_tqdm=False
                 )
-                self.notify_eval_done()
+                self.notify_eval_done(eval=False)
             for i in range(len(outputs)):
                 # for each prompt
                 if i not in candidates:
