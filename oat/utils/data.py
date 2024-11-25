@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import math
 import os
 import random
@@ -159,6 +158,14 @@ def zero_pad_sequences(sequences, side: str = "left", value=0):
     return torch.stack(padded_sequences, dim=0)
 
 
+def extract_assistant_content(conversation: List[dict]):
+    assert len(conversation) == 2
+    for msg in conversation:
+        if msg["role"] == "assistant":
+            return msg["content"]
+    raise ValueError("No assistant content found")
+
+
 def _preprocess_preference_data(
     data: PreferenceData,
     apply_chat_template=None,
@@ -301,14 +308,13 @@ class PreferenceDataset(Dataset):
             )
             prompt_ids_len = prompt_token["attention_mask"].int().sum().item()
             # filter the sample whose length is greater than max_length (2 for answer length)
-            if prompt_ids_len >= self.prompt_max_length - 2:
-                logging.warn(
-                    "Dropping samples due to length limit; this may cause the training hang because of synchronization"
-                )
-                continue
-            else:
-                self.prompt_ids_lens.append(prompt_ids_len)
-
+            # if prompt_ids_len >= self.prompt_max_length - 2:
+            #     logging.warn(
+            #         "Dropping samples due to length limit; this may cause the training hang because of synchronization"
+            #     )
+            #     continue
+            # else:
+            self.prompt_ids_lens.append(prompt_ids_len)
             self.prompts.append(prompt)
             self.chosen_responses.append(chosen)
             self.rejected_responses.append(rejected)

@@ -502,11 +502,13 @@ class LearnerBase(abc.ABC, DistributedLauncher):
     def eval_and_log(self, train_info, eval=False, save=False):
         # eval
         eval_info = {}
-        if eval or self._should_do(self.args.eval_steps):
+        if (self.args.eval_steps > 0 and eval) or self._should_do(self.args.eval_steps):
             eval_info = self.evaluate(self.eval_prompts_dataloader, self.steps)
 
         # save
-        if save or (self.steps > 0 and self._should_do(self.args.save_steps)):
+        if (self.args.save_steps > 0 and save) or (
+            self.steps > 0 and self._should_do(self.args.save_steps)
+        ):
             self.strategy.save_model(
                 self.model,
                 self.tokenizer,
