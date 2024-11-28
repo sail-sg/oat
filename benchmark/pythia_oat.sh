@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Dependencies for benchmarking to use *nccl*:
-# vllm==0.4.2, transformers==4.43.3, flash-attn==2.5.8, deepspeed==0.14.4
+# pip install vllm==0.4.2 transformers==4.43.3 flash-attn==2.5.8 deepspeed==0.14.4
 
 # 1B: [Config 1] Collocate all three workloads.
 ## Actor: 8 vLLM instances each running on 1 GPU; 
@@ -81,7 +81,7 @@ python -m oat.experiment.main \
     --train-batch-size-per-device 8 \
     --eval-steps 99999 \
     --debug \
-    --use-wb True \
+    --use-wb \
     --wb-project oat-benchmark \
     --wb-run-name 1b_pythia
 
@@ -118,7 +118,7 @@ python -m oat.experiment.main \
     --train-batch-size-per-device 2 \
     --eval-steps 99999 \
     --debug \
-    --use-wb True \
+    --use-wb \
     --wb-project oat-benchmark \
     --wb-run-name 2.8b_pythia
 
@@ -128,7 +128,7 @@ python -m oat.experiment.main \
 ## Learner: DeepSpeed zero-2 over 4 GPUs (4~7); 
 ## Oracle: 4 parallel RM workers each running on 1 GPU (0~3).
 # 3.a) Start Mosec RM service.
-python benchmark/pythia-custom-remote-rm.py --remote-rm-model trl-lib/pythia-6.9b-deduped-tldr-rm --tokenizer trl-lib/pythia-6.9b-deduped-tldr-sft --cuda-devices 0,1,2,3
+python benchmark/pythia_custom_remote_rm.py --remote-rm-model trl-lib/pythia-6.9b-deduped-tldr-rm --tokenizer trl-lib/pythia-6.9b-deduped-tldr-sft --cuda-devices 0,1,2,3
 # 3.b) Open another bash and run the experiment.
 python -m oat.experiment.main \
     --flash-attn \
@@ -158,6 +158,6 @@ python -m oat.experiment.main \
     --train-batch-size-per-device 4 \
     --eval-steps 99999 \
     --debug \
-    --use-wb True \
+    --use-wb \
     --wb-project oat-benchmark \
     --wb-run-name 6.9b_pythia
