@@ -167,7 +167,7 @@ class OATArgs:
     zero_stage: int = 2
     bf16: bool = True
     ref_offload: bool = False
-    learning_rate: float = 5e-7
+    learning_rate: float = 8e-7
     lr_warmup_ratio: float = 0.03
     zpg: int = 1
     adam_offload: bool = False

@@ -3,12 +3,12 @@ deepspeed --module oat.experiment.offline \
     --flash-attn \
     --rnd-seed \
     --dap-algo BNF \
-    --pretrain meta-llama/Meta-Llama-3-8B-Instruct \
+    --pretrain SAIL-Sailor/sailor2_8B_sft_1119_2stage_longxu_hf \
     --apply-chat-template \
     --ref-offload \
     --zero-stage 3 \
     --beta 0.01 \
-    --preference_data princeton-nlp/llama3-ultrafeedback-armorm \
+    --preference_data SAIL-Sailor/sea-ultrafeedback-1122-exclude_same_score-no-lao \
     --max-train 99999 \
     --prompt_max_length 1800 \
     --generate_max_length 1000 \
