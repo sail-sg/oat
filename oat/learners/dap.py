@@ -26,7 +26,7 @@ class DAPLearner(LearnerBase):
     def _init(self, args, actors) -> None:
         super()._init(args, actors)
 
-        if self.algo in [DAPAlgo.DPO, DAPAlgo.IPO, DAPAlgo.SLiC]:
+        if self.algo in [DAPAlgo.DPO, DAPAlgo.LR_DPO , DAPAlgo.IPO, DAPAlgo.SLiC]:
             self.loss = DPOLoss(args.beta, args.label_smoothing, dap_algo=self.algo)
         elif self.algo == DAPAlgo.SimPO:
             self.loss = SimPOLoss(
@@ -101,7 +101,7 @@ class DAPLearner(LearnerBase):
             input_ids,
             att_masks,
             prompt_id_lens,
-            average_log_prob=self.algo in [DAPAlgo.SimPO, DAPAlgo.IPO],
+            average_log_prob=self.algo in [DAPAlgo.SimPO, DAPAlgo.IPO, DAPAlgo.LR_DPO],
         )
         chosen_logps = all_logps[: chosen_ids.shape[0]]
         rejected_logps = all_logps[chosen_ids.shape[0] :]
