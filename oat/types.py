@@ -26,6 +26,7 @@ class DAPAlgo(Enum):
     IPO = 1
     SLiC = 2
     SimPO = 3
+    BNF = 4
 
 
 @dataclass
