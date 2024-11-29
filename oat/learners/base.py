@@ -410,6 +410,8 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             )
             acc_mean = []
             loss_mean = []
+            chosen_rewards = []
+            rejected_rewards = []
             reward_margin = []
             learn_batch_time = []
             self.model.train()
@@ -423,6 +425,8 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 loss = infos.pop("loss")
                 chosen_reward = infos.pop("chosen_reward")
                 rejected_reward = infos.pop("rejected_reward")
+                chosen_rewards.append(chosen_reward.mean().item())
+                rejected_rewards.append(rejected_reward.mean().item())
                 acc_mean.append((chosen_reward > rejected_reward).float().mean().item())
                 loss_mean.append(loss.cpu().item())
                 reward_margin.append((chosen_reward - rejected_reward).mean().item())
@@ -442,8 +446,8 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
         train_info = {
             "epoch": epoch + 1,
-            "chosen_reward": chosen_reward.mean().item(),
-            "rejected_reward": rejected_reward.mean().item(),
+            "chosen_reward": np.mean(chosen_rewards),
+            "rejected_reward": np.mean(rejected_rewards),
             "acc_mean": np.mean(acc_mean),
             "loss_mean": np.mean(loss_mean),
             "reward_margin": np.mean(reward_margin),
