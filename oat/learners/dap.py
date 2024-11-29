@@ -26,7 +26,7 @@ class DAPLearner(LearnerBase):
     def _init(self, args, actors) -> None:
         super()._init(args, actors)
 
-        if self.algo in [DAPAlgo.DPO, DAPAlgo.IPO, DAPAlgo.SLiC]:
+        if self.algo in [DAPAlgo.DPO, DAPAlgo.LR_DPO , DAPAlgo.IPO, DAPAlgo.SLiC]:
             self.loss = DPOLoss(args.beta, args.label_smoothing, dap_algo=self.algo)
         elif self.algo == DAPAlgo.SimPO:
             self.loss = SimPOLoss(
@@ -117,7 +117,7 @@ class DAPLearner(LearnerBase):
         )
         output = model(input_ids, attention_mask=att_masks)
         all_logits = output["logits"]
-
+        
         if self.algo != DAPAlgo.BNF:
 
             all_logps = self.get_batch_logps(

@@ -27,6 +27,7 @@ class DAPAlgo(Enum):
     SLiC = 2
     SimPO = 3
     BNF = 4
+    LR_DPO = 5
 
 
 @dataclass
