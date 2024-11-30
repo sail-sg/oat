@@ -42,6 +42,10 @@ MODEL_CONFIGS = {
         "attn_implementation": "flash_attention_2",
         "num_labels": 1,
     },
+    "Skywork/Skywork-Reward-Gemma-2-27B-v0.2": {
+        "attn_implementation": "flash_attention_2",
+        "num_labels": 1,
+    },
 }
 
 
@@ -108,17 +112,22 @@ class ServerArgs:
     remote_rm_model: str = "Skywork/Skywork-Reward-Llama-3.1-8B-v0.2"
     max_wait_time: int = 10
     cuda_devices: str = "all"
+    multi_gpu: bool = False
 
 
 if __name__ == "__main__":
     args = tyro.cli(ServerArgs)
 
-    if args.cuda_devices == "all":
-        NUM_DEVICE = torch.cuda.device_count()
-        devices = list(range(NUM_DEVICE))
+    if args.multi_gpu:
+        NUM_DEVICE = 1
+        devices = [",".join([str(i) for i in range(torch.cuda.device_count())])]
     else:
-        devices = args.cuda_devices.split(",")
-        NUM_DEVICE = len(devices)
+        if args.cuda_devices == "all":
+            NUM_DEVICE = torch.cuda.device_count()
+            devices = list(range(NUM_DEVICE))
+        else:
+            devices = args.cuda_devices.split(",")
+            NUM_DEVICE = len(devices)
 
     def _prepare_env(cid: int) -> dict:
         return {

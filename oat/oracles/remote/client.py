@@ -80,6 +80,7 @@ class RemoteRMOracle(OracleBase):
                                 "batch_candidates": bc,
                             }
                         ),
+                        timeout=5,
                     )
                     if resp.status_code == HTTPStatus.OK:
                         result = msgspec.msgpack.decode(resp.content)
