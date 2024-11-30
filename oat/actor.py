@@ -213,7 +213,7 @@ class Actor:
         from which 2 responses are selected to query the oracle for preference signal.
         The final constructed pair (x, y_w, y_l) is inserted into the replay buffer for learners.
 
-        OATArgs:
+        Args:
             prompts: A list of prompt texts.
             formatted_prompts: A list of chat template formatted prompt texts.
             references: A list of reference texts.

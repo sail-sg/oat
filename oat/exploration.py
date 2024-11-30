@@ -48,7 +48,7 @@ class ExplorerBase(abc.ABC):
     ) -> List[str]:
         """Best-of-N generation given the reward model.
 
-        OATArgs:
+        Args:
             prompts (List[str]): A list of prompt texts, M
             candidates (Dict[int, List[str]]): Lists of responses per prompt, M -> N
 
@@ -64,7 +64,7 @@ class ExplorerBase(abc.ABC):
     ) -> ExplorationResults:
         """Select dueling responses from candidates.
 
-        OATArgs:
+        Args:
             prompts (List[str]): A list of prompt texts, M
             candidates (Dict[int, List[str]]): Lists of responses per prompt, M -> N
 
@@ -76,7 +76,7 @@ class ExplorerBase(abc.ABC):
     def compare(self, candidate_features: torch.Tensor) -> torch.Tensor:
         """Compare candidates using the reward model.
 
-        OATArgs:
+        Args:
             candidate_features (torch.Tensor): (M, 2, d)
 
         Returns:
@@ -104,7 +104,7 @@ class Explorer(ExplorerBase):
     ) -> List[str]:
         """Best-of-N generation given the reward model.
 
-        OATArgs:
+        Args:
             prompts (List[str]): A list of prompt texts, M
             candidates (Dict[int, List[str]]): Lists of responses per prompt, M -> N
 
@@ -127,7 +127,7 @@ class Explorer(ExplorerBase):
     ) -> ExplorationResults:
         """Select dueling responses from candidates.
 
-        OATArgs:
+        Args:
             prompts (List[str]): A list of prompt texts, M
             candidates (Dict[int, List[str]]): Lists of responses per prompt, M -> N
 

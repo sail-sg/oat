@@ -71,7 +71,7 @@ class DPOLoss(nn.Module):
         )
 
         return loss, chosen_rewards, rejected_rewards
-    
+
 
 class SimPOLoss(nn.Module):
     def __init__(
@@ -115,6 +115,7 @@ class SimPOLoss(nn.Module):
 
         return loss, chosen_rewards, rejected_rewards
 
+
 class BNFLoss(nn.Module):
     """
     BNF Loss
@@ -136,26 +137,31 @@ class BNFLoss(nn.Module):
         loss_masks: torch.Tensor,
         chosen_shape: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        
-        token_count = torch.min(token_masks.sum(-1,keepdims=True))
-        target_response = torch.clamp(policy_logps.exp()/(ref_logps.exp()+1e-6), max=torch.ones_like(policy_logps))
-        target_other = (1-target_response+1e-6) / (1-policy_logps.exp()+1e-6)
-        logp = target_response.detach() * policy_logps +  target_other.detach() * policy_entropy
+
+        token_count = torch.min(token_masks.sum(-1, keepdims=True))
+        target_response = torch.clamp(
+            policy_logps.exp() / (ref_logps.exp() + 1e-6),
+            max=torch.ones_like(policy_logps),
+        )
+        target_other = (1 - target_response + 1e-6) / (1 - policy_logps.exp() + 1e-6)
+        logp = (
+            target_response.detach() * policy_logps
+            + target_other.detach() * policy_entropy
+        )
 
         logp = logp * token_masks
-        logp_sum = logp.sum(-1,keepdims=True)/token_count
-        
-        rewards = (policy_logps.sum(-1,keepdims=True) - ref_logps.sum(-1,keepdims=True))
+        logp_sum = logp.sum(-1, keepdims=True) / token_count
 
-        chosen_logp_sum = logp_sum[:chosen_shape[0]]
-        rejected_logp_sum = logp_sum[chosen_shape[0]:]
+        rewards = policy_logps.sum(-1, keepdims=True) - ref_logps.sum(-1, keepdims=True)
 
-        chosen_rewards = rewards[:chosen_shape[0]]
-        rejected_rewards = rewards[chosen_shape[0]:]
+        chosen_logp_sum = logp_sum[: chosen_shape[0]]
+        rejected_logp_sum = logp_sum[chosen_shape[0] :]
 
-        losses = - (chosen_logp_sum - rejected_logp_sum)
+        chosen_rewards = rewards[: chosen_shape[0]]
+        rejected_rewards = rewards[chosen_shape[0] :]
+
+        losses = -(chosen_logp_sum - rejected_logp_sum)
 
         loss = (losses * loss_masks).mean()
 
         return loss, chosen_rewards, rejected_rewards
-    

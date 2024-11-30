@@ -29,7 +29,7 @@ class OracleBase(abc.ABC):
     ) -> List[Any]:
         """Provide oracle feedback.
 
-        OATArgs:
+        Args:
             inputs (List[str]): List of input strings
             candidates_A (List[str]): List of candidate A strings
             candidates_B (List[str]): List of candidate B strings

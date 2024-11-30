@@ -15,7 +15,7 @@
 import torch
 
 from oat.learners.base import LearnerBase
-from oat.learners.loss import DPOLoss, SimPOLoss, BNFLoss
+from oat.learners.loss import BNFLoss, DPOLoss, SimPOLoss
 from oat.types import DAPAlgo
 from oat.utils.data import pad_to_length
 
@@ -49,26 +49,34 @@ class DAPLearner(LearnerBase):
         loss_masks = 1 - torch.tensor(extra["same_masks"]).float().to(device)
 
         if self.algo == DAPAlgo.BNF:
-            
+
             policy_logps, policy_entropy, token_masks = self.concatenated_forward(
-                self.model, chosen_ids, c_mask, rejected_ids, r_mask, prompt_id_lens)
-            
+                self.model, chosen_ids, c_mask, rejected_ids, r_mask, prompt_id_lens
+            )
+
             with torch.no_grad():
                 ref_logps, _, _ = self.concatenated_forward(
-                    self.ref_model, chosen_ids, c_mask, rejected_ids, r_mask, prompt_id_lens)
-            
-            preference_loss, chosen_reward, rejected_reward = self.loss(
-                    policy_logps,
-                    policy_entropy,
-                    ref_logps,
-                    token_masks,
-                    loss_masks,
-                    chosen_ids.shape
+                    self.ref_model,
+                    chosen_ids,
+                    c_mask,
+                    rejected_ids,
+                    r_mask,
+                    prompt_id_lens,
                 )
+
+            preference_loss, chosen_reward, rejected_reward = self.loss(
+                policy_logps,
+                policy_entropy,
+                ref_logps,
+                token_masks,
+                loss_masks,
+                chosen_ids.shape,
+            )
 
         else:
             chosen_logps, rejected_logps, _ = self.concatenated_forward(
-                self.model, chosen_ids, c_mask, rejected_ids, r_mask, prompt_id_lens)
+                self.model, chosen_ids, c_mask, rejected_ids, r_mask, prompt_id_lens
+            )
 
             if self.ref_model is not None:
                 with torch.no_grad():
@@ -117,7 +125,7 @@ class DAPLearner(LearnerBase):
         )
         output = model(input_ids, attention_mask=att_masks)
         all_logits = output["logits"]
-        
+
         if self.algo != DAPAlgo.BNF:
 
             all_logps = self.get_batch_logps(
@@ -132,7 +140,7 @@ class DAPLearner(LearnerBase):
             aux_loss = output.aux_loss if "aux_loss" in output else []
 
             return chosen_logps, rejected_logps, aux_loss
-        
+
         else:
 
             all_logps, entropy, token_masks = self.get_batch_logps(
@@ -149,7 +157,7 @@ class DAPLearner(LearnerBase):
     ):
         """Concatenate the chosen and rejected inputs into a single tensor.
 
-        OATArgs:
+        Args:
             batch: A batch of data. Must contain the keys 'chosen_input_ids' and 'rejected_input_ids', which are tensors of shape (batch_size, sequence_length).
 
         Returns:
@@ -185,7 +193,7 @@ class DAPLearner(LearnerBase):
     ):
         """Compute the log probabilities of the given labels under the given logits.
 
-        OATArgs:
+        Args:
             logits: Logits of the model (unnormalized). Shape: (batch_size, sequence_length, vocab_size)
             labels: Labels for which to compute the log probabilities. Label tokens with a value of -100 are ignored. Shape: (batch_size, sequence_length)
             average_log_prob: If True, return the average log probability per (non-masked) token. Otherwise, return the sum of the log probabilities of the (non-masked) tokens.
@@ -208,10 +216,9 @@ class DAPLearner(LearnerBase):
         labels[loss_masks == False] = 0
 
         all_logp = logits.log_softmax(-1)
-        target_logps = torch.gather(
-            all_logp, dim=2, index=labels.unsqueeze(2)
-        ).squeeze(2)
-
+        target_logps = torch.gather(all_logp, dim=2, index=labels.unsqueeze(2)).squeeze(
+            2
+        )
 
         if self.algo != DAPAlgo.BNF:
 
@@ -224,9 +231,11 @@ class DAPLearner(LearnerBase):
                 return (target_logps * loss_masks).sum(-1) / length
             else:
                 return (target_logps * loss_masks).sum(-1)
-            
+
         else:
 
-            entropy = (all_logp.exp().detach() * all_logp).sum(-1) - target_logps.exp().detach() * target_logps
+            entropy = (all_logp.exp().detach() * all_logp).sum(
+                -1
+            ) - target_logps.exp().detach() * target_logps
 
             return target_logps * loss_masks, entropy * loss_masks, loss_masks

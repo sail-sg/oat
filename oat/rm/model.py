@@ -42,7 +42,7 @@ class RewardModel(abc.ABC, nn.Module):
     ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor]:
         """Get dueling actions based on rewards of given features.
 
-        OATArgs:
+        Args:
             features (torch.Tensor): (M, N, d)
 
         Returns:
@@ -53,7 +53,7 @@ class RewardModel(abc.ABC, nn.Module):
     def get_best_action(self, features: torch.Tensor) -> torch.LongTensor:
         """Get Best-of-N action based on rewards of given features.
 
-        OATArgs:
+        Args:
             features (torch.Tensor): (M, N, d)
 
         Returns:

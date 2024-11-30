@@ -168,7 +168,7 @@ class WorkerWrap(Worker):
 def node_ip_address_from_perspective(address: str = "8.8.8.8:53"):
     """IP address by which the local node can be reached *from* the `address`.
 
-    OATArgs:
+    Args:
         address: The IP address and port of any known live service on the
             network you care about.
 
