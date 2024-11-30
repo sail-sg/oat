@@ -137,7 +137,7 @@ class BNFLoss(nn.Module):
         chosen_shape: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         
-        token_count = token_masks.sum(-1,keepdims=True)
+        token_count = torch.min(token_masks.sum(-1,keepdims=True))
         target_response = torch.clamp(policy_logps.exp()/(ref_logps.exp()+1e-6), max=torch.ones_like(policy_logps))
         target_other = (1-target_response+1e-6) / (1-policy_logps.exp()+1e-6)
         logp = target_response.detach() * policy_logps +  target_other.detach() * policy_entropy
