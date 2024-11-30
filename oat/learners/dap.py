@@ -216,7 +216,7 @@ class DAPLearner(LearnerBase):
         if self.algo != DAPAlgo.BNF:
 
             if average_log_prob:
-                return (target_logps * loss_masks).sum(-1) / loss_masks.sum(-1)
+                return (target_logps * loss_masks).sum(-1) / torch.min(loss_masks.sum(-1))
             else:
                 return (target_logps * loss_masks).sum(-1)
             
