@@ -215,8 +215,13 @@ class DAPLearner(LearnerBase):
 
         if self.algo != DAPAlgo.BNF:
 
+            if self.algo == DAPAlgo.LR_DPO:
+                length = torch.min(loss_masks.sum(-1))
+            else:
+                length = loss_masks.sum(-1)
+            
             if average_log_prob:
-                return (target_logps * loss_masks).sum(-1) / torch.min(loss_masks.sum(-1))
+                return (target_logps * loss_masks).sum(-1) / length
             else:
                 return (target_logps * loss_masks).sum(-1)
             
