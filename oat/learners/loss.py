@@ -30,12 +30,14 @@ class DPOLoss(nn.Module):
         self,
         beta: float,
         label_smoothing: float = 0.0,
+        len_reg_alpha: float = 0.0,
         dap_algo=DAPAlgo.DPO,
     ) -> None:
         super().__init__()
         self.beta = beta
         self.label_smoothing = label_smoothing
         self.dap_algo = dap_algo
+        self.len_reg_alpha = len_reg_alpha
 
     def forward(
         self,
@@ -44,6 +46,7 @@ class DPOLoss(nn.Module):
         reference_chosen_logps: torch.Tensor,
         reference_rejected_logps: torch.Tensor,
         loss_masks: torch.Tensor,
+        token_masks: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         pi_logratios = policy_chosen_logps - policy_rejected_logps
         ref_logratios = reference_chosen_logps - reference_rejected_logps
@@ -56,6 +59,13 @@ class DPOLoss(nn.Module):
         elif self.dap_algo == DAPAlgo.SLiC:
             losses = torch.relu(1 - self.beta * logits)
         else:
+            if self.len_reg_alpha > 0:
+                y_length = token_masks.sum(-1)
+                length_diff = (
+                    y_length[: len(y_length) // 2] - y_length[len(y_length) // 2 :]
+                )
+                # Eq. 9 https://arxiv.org/pdf/2403.19159; Length Reg in loss.
+                logits += self.len_reg_alpha / self.beta * length_diff
             # Eq. 3 https://ericmitchell.ai/cdpo.pdf; label_smoothing=0 gives original DPO (Eq. 7 of https://arxiv.org/pdf/2305.18290.pdf)
             losses = (
                 -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)

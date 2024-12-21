@@ -54,6 +54,8 @@ class OATArgs:
     label_smoothing: float = 0
     # SimPO https://arxiv.org/pdf/2405.14734.
     gamma_beta_ratio: float = 0.5
+    # Length-Regularized DPO https://arxiv.org/pdf/2403.19159.
+    len_reg_alpha: float = 0.0
 
     # Oracle.
     preference_oracle: str = "pairrm"

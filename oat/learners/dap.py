@@ -27,7 +27,9 @@ class DAPLearner(LearnerBase):
         super()._init(args, actors)
 
         if self.algo in [DAPAlgo.DPO, DAPAlgo.LR_DPO, DAPAlgo.IPO, DAPAlgo.SLiC]:
-            self.loss = DPOLoss(args.beta, args.label_smoothing, dap_algo=self.algo)
+            self.loss = DPOLoss(
+                args.beta, args.label_smoothing, args.len_reg_alpha, dap_algo=self.algo
+            )
         elif self.algo == DAPAlgo.SimPO:
             self.loss = SimPOLoss(
                 args.beta, args.gamma_beta_ratio, args.label_smoothing
@@ -74,13 +76,13 @@ class DAPLearner(LearnerBase):
             )
 
         else:
-            chosen_logps, rejected_logps, _ = self.concatenated_forward(
+            chosen_logps, rejected_logps, _, token_masks = self.concatenated_forward(
                 self.model, chosen_ids, c_mask, rejected_ids, r_mask, prompt_id_lens
             )
 
             if self.ref_model is not None:
                 with torch.no_grad():
-                    reference_chosen_logps, reference_rejected_logps, _ = (
+                    reference_chosen_logps, reference_rejected_logps, _, _ = (
                         self.concatenated_forward(
                             self.ref_model,
                             chosen_ids,
@@ -96,6 +98,7 @@ class DAPLearner(LearnerBase):
                     reference_chosen_logps,
                     reference_rejected_logps,
                     loss_masks,
+                    token_masks,
                 )
             else:
                 preference_loss, chosen_reward, rejected_reward = self.loss(
@@ -128,7 +131,7 @@ class DAPLearner(LearnerBase):
 
         if self.algo != DAPAlgo.BNF:
 
-            all_logps = self.get_batch_logps(
+            all_logps, token_masks = self.get_batch_logps(
                 all_logits,
                 input_ids,
                 att_masks,
@@ -140,7 +143,12 @@ class DAPLearner(LearnerBase):
             rejected_logps = all_logps[chosen_ids.shape[0] :]
             aux_loss = output.aux_loss if "aux_loss" in output else []
 
-            return chosen_logps, rejected_logps, aux_loss
+            return (
+                chosen_logps,
+                rejected_logps,
+                aux_loss,
+                token_masks,
+            )
 
         else:
 
@@ -226,9 +234,9 @@ class DAPLearner(LearnerBase):
             length = loss_masks.sum(-1)
 
             if average_log_prob:
-                return (target_logps * loss_masks).sum(-1) / length
+                return (target_logps * loss_masks).sum(-1) / length, loss_masks
             else:
-                return (target_logps * loss_masks).sum(-1)
+                return (target_logps * loss_masks).sum(-1), loss_masks
 
         else:
 
