@@ -70,11 +70,11 @@ class DAPwRMLearner(DAPLearner):
                 )
             )
 
-    def preference_learning(self, learning_round):
+    def learn(self, learning_round):
         train_info = {}
         # NOTE Put reward learning after policy learning otherwise program gets stuck.
         if not self.learn_rm_only:
-            train_info.update(super().preference_learning(learning_round))
+            train_info.update(super().learn(learning_round))
         train_info.update(self._reward_learning())
         return train_info
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from oat.collectors.asynchronous import AsyncFeedbackCollector
-from oat.collectors.base import FeedbackCollector
+from oat.actors.preference import PreferenceActor
+from oat.actors.reward import RewardActor
 
-__all__ = ["AsyncFeedbackCollector", "FeedbackCollector"]
+__all__ = ["PreferenceActor", "RewardActor"]

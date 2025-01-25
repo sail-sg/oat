@@ -12,26 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import launchpad as lp
 
-from oat.algorithms.apl import APLActor, APLArgs, APLLearner
+from oat.algorithms.ppo import OfflinePPOLearner, PPOArgs
 from oat.args import default_args_validation, get_default_args
-from oat.interface import get_program
 
 
-def run_apl(args):
-    program, local_resources = get_program(args, APLLearner, APLActor)
-    lp.launch(
-        program,
-        launch_type=args.launch_type,
-        local_resources=local_resources,
-        terminal="current_terminal",
-    )
+def run_ppo(args):
+    cls = OfflinePPOLearner
+
+    def __init__(self, args):
+        # Hack to discard DistributedLauncher and use deepspeed launcher.
+        self.args = args
+        self.actors = []
+        self.ipc_server = None
+
+    cls.__init__ = __init__
+    learner = cls(args=args)
+    learner.run()
 
 
 if __name__ == "__main__":
-    args = get_default_args(APLArgs)
+    args = get_default_args(PPOArgs)
+
+    # Customization:
+    args.algo = "PPO"
+    args.online_evaluation = True  # Use GT answer for online verification.
+    args.learn_critic = True
+    args.reward_key = "final_reward"  # Debugging purpose.
+
     args = default_args_validation(args)
-    if args.apl_pref_certainty_only:
-        args.num_samples = 2
-    run_apl(args)
+    run_ppo(args)

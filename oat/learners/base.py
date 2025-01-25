@@ -13,14 +13,13 @@
 # limitations under the License.
 
 import abc
-import dataclasses
 import math
 import os
 import socket
 import time
 from collections import deque
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple, Union
 from warnings import warn
 
 import deepspeed
@@ -35,12 +34,12 @@ from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 from transformers.trainer import get_scheduler
 
-from oat.actor import Actor
+from oat.actors.base import ActorBase
 from oat.args import OATArgs
-from oat.collectors import AsyncPreferenceCollector, PreferenceCollector
+from oat.collectors import AsyncFeedbackCollector, FeedbackCollector
 from oat.model import LLM
-from oat.types import DAPAlgo, PreferenceData
-from oat.utils.data import PreferenceDataset, get_datasets, get_tokenizer
+from oat.types import PreferenceData, TrajectoryData
+from oat.utils.data import get_datasets, get_tokenizer
 from oat.utils.deepspeed import get_strategy
 from oat.utils.distributed import (
     init_process_group,
@@ -49,6 +48,7 @@ from oat.utils.distributed import (
 )
 from oat.utils.ipc import PlasmaShmClient, PlasmaShmServer
 from oat.utils.launcher import DistributedLauncher
+from oat.utils.ops import disable_dropout
 
 
 class LearnerBase(abc.ABC, DistributedLauncher):
@@ -63,7 +63,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         master_port: str,
         is_master: bool,
         args: OATArgs,
-        actors: List[Actor],
+        actors: List[ActorBase],
         ipc_server: PlasmaShmServer,
     ) -> None:
         super().__init__(
@@ -73,11 +73,13 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.actors = actors
         self.ipc_server = ipc_server
 
-    def _init(self, args: OATArgs, actors: List[Actor]) -> None:
+    def _init(self, args: OATArgs, actors: List[ActorBase]) -> None:
         args, strategy = get_strategy(args)
         strategy.setup_distributed()
 
-        model = LLM(
+        # ---------- Model related ----------
+        # init policy model
+        self.model = LLM(
             args.pretrain,
             use_flash_attention_2=args.flash_attn,
             bf16=args.bf16,
@@ -86,46 +88,34 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             lora_alpha=args.lora_alpha,
             lora_dropout=args.lora_dropout,
             target_modules=args.target_modules,
-            ds_config=strategy.get_ds_train_config(is_wrapped=True),
+            # ds_config=strategy.get_ds_train_config(is_wrapped=True),
         )
-        self.algo = args.dap_algo
-
-        if self.algo != DAPAlgo.SimPO:
-            strategy.print("Running reference-based algorithm... (DPO, IPO, etc.)")
-            assert args.ref_pretrain, "Reference model must be non-empty"
-            ref_model = LLM(
-                args.ref_pretrain,
-                use_flash_attention_2=args.flash_attn,
-                bf16=args.bf16,
-                load_in_4bit=args.load_in_4bit,
-                ds_config=strategy.get_ds_eval_config(offload=args.ref_offload),
-            )
-        else:
-            strategy.print("Running reference-free algorithm... (SimPO)")
-
-        tokenizer = get_tokenizer(
-            args.pretrain,
-            model.model,
-            "left",
-            use_fast=not args.disable_fast_tokenizer,
-        )
-
+        disable_dropout(self.model)
         if args.gradient_checkpointing:
-            model.gradient_checkpointing_enable(
+            self.model.gradient_checkpointing_enable(
                 gradient_checkpointing_kwargs={
                     "use_reentrant": args.gradient_checkpointing_use_reentrant
                 }
             )
+        # load tokenizer
+        tokenizer_path = args.tokenizer if args.tokenizer else args.pretrain
+        strategy.print("Loading tokenizer from:", tokenizer_path)
 
-        optimizer = strategy.create_optimizer(
-            model, lr=args.learning_rate, betas=(0.9, 0.95), weight_decay=args.l2
+        self.tokenizer = get_tokenizer(
+            tokenizer_path,
+            self.model.model,
+            "left",
+            use_fast=not args.disable_fast_tokenizer,
         )
+        strategy.print("chat template:", self.tokenizer.chat_template)
 
-        # prepare datasets
+        # ---------- Data related ----------
+        # prepare buffer
         self.pi_buffer = deque(maxlen=args.pi_buffer_maxlen_per_device)
         self.all_buffer = deque(maxlen=int(1e9))
+        # prepare (eval) prompts dataloader
+        self.prepare_data(strategy, self.tokenizer)
 
-        self.prepare_data(strategy, tokenizer)
         strategy.print("Prompt dataset example:")
         strategy.print(self.prompts_dataset[0])
         strategy.print("Prompt dataset len:", len(self.prompts_dataset))
@@ -133,47 +123,47 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.eval_input_key = args.eval_input_key or args.input_key
         self.eval_output_key = args.eval_output_key or args.output_key
 
-        # configure scheduler
+        # ---------- Optimizer related ----------
+        self.optimizer = strategy.create_optimizer(
+            self.model,
+            lr=args.learning_rate,
+            betas=(args.adam_beta_1, args.adam_beta_2),
+            weight_decay=args.l2,
+        )
         num_policy_sgd_steps_per_episodes = int(
             len(self.prompts_dataset) * args.max_epochs // args.train_batch_size
         )
-        max_steps = math.ceil(
-            args.num_prompt_epoch
-            * num_policy_sgd_steps_per_episodes
-            * args.max_step_adjustment
+        self.max_steps = math.ceil(
+            args.num_prompt_epoch * num_policy_sgd_steps_per_episodes
         )
-        scheduler = get_scheduler(
-            "cosine_with_min_lr",
-            optimizer,
-            num_warmup_steps=math.ceil(max_steps * args.lr_warmup_ratio),
-            num_training_steps=max_steps,
-            scheduler_specific_kwargs={"min_lr": args.learning_rate * 0.1},
+        max_steps_to_schedule = self.max_steps * args.max_step_adjustment
+
+        scheduler_specific_kwargs = {}
+        if args.lr_scheduler not in ["polynomial"]:
+            scheduler_specific_kwargs["min_lr"] = args.learning_rate * 0.1
+        self.scheduler = get_scheduler(
+            args.lr_scheduler,
+            self.optimizer,
+            num_warmup_steps=math.ceil(max_steps_to_schedule * args.lr_warmup_ratio),
+            num_training_steps=max_steps_to_schedule,
+            scheduler_specific_kwargs=scheduler_specific_kwargs,
         )
         strategy.print(
-            f"num_policy_sgd_steps_per_episodes={num_policy_sgd_steps_per_episodes}; max_steps={max_steps}"
+            f"num_policy_sgd_steps_per_episodes={num_policy_sgd_steps_per_episodes}; max_steps={max_steps_to_schedule}"
         )
 
-        # preference collector
-        if self.args.asynchronous:
-            self.collector = AsyncPreferenceCollector(self)
-        else:
-            self.collector = PreferenceCollector(self)
-
-        # prepare models/optimizers...
-        if self.algo != DAPAlgo.SimPO:
-            ((self.model, self.optimizer, self.scheduler), self.ref_model) = (
-                strategy.prepare(
-                    (model, optimizer, scheduler),
-                    ref_model,
-                    is_rlhf=True,
+        # prepare collector, which communicates with actors
+        if actors:
+            if self.args.asynchronous:
+                self.collector = AsyncFeedbackCollector(
+                    args, actors, PlasmaShmClient(self.ipc_server)
                 )
-            )
+            else:
+                self.collector = FeedbackCollector(
+                    args, actors, PlasmaShmClient(self.ipc_server)
+                )
         else:
-            (self.model, self.optimizer, self.scheduler) = strategy.prepare(
-                (model, optimizer, scheduler),
-                is_rlhf=True,
-            )
-            self.ref_model = None
+            strategy.print("No actors or feedback collector in offline mode.")
 
         exp_name = args.wb_run_name + "_" + datetime.now().strftime("%m%dT%H:%M:%S")
         self.save_path = os.path.join(args.save_path, exp_name)
@@ -197,11 +187,8 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 reinit=True,
             )
 
-        if actors:
-            self.ipc_client = PlasmaShmClient(self.ipc_server)
-
+        self.algo = args.algo
         self.strategy = strategy
-        self.tokenizer = tokenizer
         self.update_interval = args.rollout_batch_size // (
             strategy.world_size * args.rollout_batch_size_per_device
         )
@@ -305,26 +292,20 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             for processed_prompts, raw_prompts, refs in self.prompts_dataloader:
                 if early_stop:
                     break
-                preference_data, self.actor_info = self.collector.collect_preference(
+                feedback_data, self.actor_info = self.collector.collect_feedback(
                     raw_prompts, processed_prompts, refs
                 )
                 del raw_prompts, processed_prompts
 
-                if preference_data is None:
-                    # Asynchronous prefilling: only the 1st step.
+                if feedback_data is None:
+                    # Asynchronous prefilling, data is stored in collector's buffer.
                     continue
-                self.prompt_consumed += len(preference_data)
-                self.query_step += np.sum(
-                    [not p.is_model_data for p in preference_data]
-                )
-                self.process_preference_data(
-                    preference_data, [p.prompt for p in preference_data]
-                )
+                self.prompt_consumed += len(feedback_data)
+
+                self.process_feedback_data(feedback_data)
 
                 if self.steps % self.update_interval == 0:
-                    train_info = self.preference_learning(
-                        self.steps // self.update_interval
-                    )
+                    train_info = self.learn(self.steps // self.update_interval)
 
                     self.eval_and_log(train_info)
 
@@ -362,110 +343,59 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             self._wandb.finish() if self._wandb else None
             lp.stop()
 
-    def process_preference_data(self, data_list: List[PreferenceData], raw_prompts):
-        for i, pref in enumerate(data_list):
-            # Replace with raw prompts instead of templated ones.
-            new_pref = dataclasses.replace(pref, prompt=raw_prompts[i])  # shallow copy
-            self.pi_buffer.append(new_pref)
-            if self.args.dump_all_buffer:
-                c = new_pref.chosen_response
-                r = new_pref.rejected_response
-                self.all_buffer.append(
-                    PreferenceData(
-                        prompt=new_pref.prompt,
-                        chosen_response=c,
-                        rejected_response=r,
-                        same=c == r,
-                    )
-                )
+    @abc.abstractmethod
+    def process_feedback_data(
+        self, data_list: List[Union[PreferenceData, TrajectoryData]]
+    ):
+        """Process collected feedback data, e.g., adding it to buffer."""
 
-    def preference_learning(self, learning_round):
-        torch.cuda.empty_cache()
-        dist.barrier()
-        dataset = PreferenceDataset(
-            self.pi_buffer,
-            self.tokenizer,
-            self.args.prompt_max_length,
-            self.args.generate_max_length,
-            self.strategy,
-        )
-        if learning_round == 1:
-            self.strategy.print("Training example")
-            self.strategy.print(dataset[0])
-
-        dataloader = DataLoader(
-            dataset,
-            batch_size=self.args.train_batch_size_per_device,
-            shuffle=True,
-            drop_last=True,
-            pin_memory=True,
-            collate_fn=dataset.collate_fn,
-        )
-        local_sgd_steps = 0
-        for epoch in range(self.args.max_epochs):
-            step_bar = tqdm(
-                range(len(dataloader)),
-                desc="Train step of epoch %d" % epoch,
-                disable=not self.strategy.is_rank_0(),
-            )
-            acc_mean = []
-            loss_mean = []
-            chosen_rewards = []
-            rejected_rewards = []
-            reward_margin = []
-            learn_batch_time = []
-            self.model.train()
-            st = time.time()
-            for data in dataloader:
-                if local_sgd_steps > self.args.max_sgd_steps:
-                    break
-                infos = self.learning_step(data)
-
-                # metrics
-                loss = infos.pop("loss")
-                chosen_reward = infos.pop("chosen_reward")
-                rejected_reward = infos.pop("rejected_reward")
-                chosen_rewards.append(chosen_reward.mean().item())
-                rejected_rewards.append(rejected_reward.mean().item())
-                acc_mean.append((chosen_reward > rejected_reward).float().mean().item())
-                loss_mean.append(loss.cpu().item())
-                reward_margin.append((chosen_reward - rejected_reward).mean().item())
-
-                step_bar.update()
-                self.global_step += 1
-                if self.global_step % self.strategy.accumulated_gradient == 0:
-                    learn_batch_time.append(time.time() - st)
-                    self.gradient_update_elapse = time.time() - self.gradient_update_st
-                    st = time.time()
-                    self.gradient_update_st = time.time()
-                    self.policy_sgd_step += 1
-                    local_sgd_steps += 1
-
-        torch.cuda.empty_cache()
-        dist.barrier()
-
-        train_info = {
-            "epoch": epoch + 1,
-            "chosen_reward": np.mean(chosen_rewards),
-            "rejected_reward": np.mean(rejected_rewards),
-            "acc_mean": np.mean(acc_mean),
-            "loss_mean": np.mean(loss_mean),
-            "reward_margin": np.mean(reward_margin),
-            "learning_round": learning_round,
-            "learn_batch_time": np.mean(learn_batch_time),
-            **tree.map_structure(lambda x: x.cpu().float().mean().item(), infos),
-        }
-        train_info = {
-            "train/%s" % k: v
-            for k, v in {
-                **train_info,
-            }.items()
-        }
-        return train_info
+    @abc.abstractmethod
+    def learn(self, learning_round: int):
+        """Agent learning given the current data in the buffer."""
 
     @abc.abstractmethod
     def learning_step(self, data):
-        """Preference learning step."""
+        """Agent learning step."""
+
+    def get_batch_logps(
+        self,
+        logits: torch.FloatTensor,
+        labels: torch.LongTensor,
+        attention_mask: torch.LongTensor,
+        prompt_id_lens: List[int],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Compute the log probabilities of the given labels under the given logits.
+
+        Args:
+            logits: Logits of the model (unnormalized). Shape: (batch_size, sequence_length, vocab_size)
+            labels: Labels for which to compute the log probabilities. Label tokens with a value of -100 are ignored. Shape: (batch_size, sequence_length)
+            average_log_prob: If True, return the average log probability per (non-masked) token. Otherwise, return the sum of the log probabilities of the (non-masked) tokens.
+
+        Returns:
+            all_logp: all log prob of shape (batch_size, sequence_length, vocab_size)
+            target_logps: target log prob of shape (batch_size, sequence_length)
+            completion_masks: mask=True if it is completion's token, shape (batch_size, sequence_length)
+        """
+        assert logits.shape[:-1] == labels.shape
+
+        labels = labels[:, 1:].clone()
+        logits = logits[:, :-1, :]
+
+        completion_masks = attention_mask.clone().bool()
+        # mask prompts
+        for mask, source_len in zip(completion_masks, prompt_id_lens):
+            mask[:source_len] = False
+        completion_masks = completion_masks[:, 1:]
+
+        # dummy token; we'll ignore the losses on these tokens later
+        labels[completion_masks == False] = 0
+
+        all_logp = logits.log_softmax(-1)
+        target_logps = torch.gather(all_logp, dim=2, index=labels.unsqueeze(2)).squeeze(
+            2
+        )
+
+        return all_logp, target_logps, completion_masks
 
     def get_misc_info(self) -> Dict[str, Any]:
         return {
@@ -548,7 +478,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
             if self.strategy.is_rank_0():
                 if self.pi_buffer:
-                    self.strategy.pprint(np.random.choice(self.pi_buffer))
+                    self.strategy.print(np.random.choice(self.pi_buffer))
                 self.strategy.pprint(logs_dict)
                 if self._wandb is not None:
                     self._wandb.log(logs_dict)
@@ -566,13 +496,14 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self._broadcast_to_vllm()
 
         # 3) Generate and process results
-
         win_rate = 0
         win_rate_prob = 0
+        response_len = 0
         if self.strategy.is_rank_0():
             processed_prompts = []
             prompts = []
             responses = []
+            response_lens = []
             references = []
             futs = []
             win_probs = []
@@ -616,9 +547,11 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             )
             win_rate = np.mean(wins).item()
             win_rate_prob = np.mean(win_probs).item()
+            response_len = np.mean(tree.map_structure(lambda x: len(x), responses))
 
         win_rate = self.strategy.broadcast(win_rate)
         win_rate_prob = self.strategy.broadcast(win_rate_prob)
+        response_len = self.strategy.broadcast(response_len)
 
         # 4) Recover Actors' original behavior policy.
         if self.strategy.is_rank_0():
@@ -629,6 +562,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             "eval/rm_win_rate": win_rate,
             "eval/rm_win_rate_prob": win_rate_prob,
             "eval/elapse": time.time() - st_time,
+            "eval/response_str_len": response_len,
         }
 
     def sync_params_to_actors(self):

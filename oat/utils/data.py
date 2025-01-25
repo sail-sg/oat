@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import math
 import os
 import random
@@ -24,16 +25,11 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from oat.types import PreferenceData
+from oat.types import PreferenceData, TrajectoryData
 from oat.utils.deepspeed import DeepspeedStrategy
 
-DEFAULT_PAD_TOKEN = "[PAD]"
-DEFAULT_EOS_TOKEN = "</s>"
-DEFAULT_BOS_TOKEN = "<s>"
-DEFAULT_UNK_TOKEN = "<unk>"
 
-
-def get_tokenizer(pretrain, model, padding_side="left", use_fast=True):
+def get_tokenizer(pretrain, model=None, padding_side="left", use_fast=True):
     tokenizer = AutoTokenizer.from_pretrained(
         pretrain, trust_remote_code=True, use_fast=use_fast
     )
@@ -43,7 +39,8 @@ def get_tokenizer(pretrain, model, padding_side="left", use_fast=True):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id
-        model.config.pad_token_id = tokenizer.pad_token_id
+        if model is not None:
+            model.config.pad_token_id = tokenizer.pad_token_id
 
     return tokenizer
 
@@ -187,7 +184,7 @@ def _preprocess_preference_data(
         chosen = data.chosen_response
         rejected = data.rejected_response
 
-    return prompt, chosen, rejected, data.same, data.chosen_id
+    return prompt, chosen, rejected, data.loss_mask, data.chosen_id
 
 
 class PromptDataset(Dataset):
@@ -272,7 +269,7 @@ class PreferenceDataset(Dataset):
         self.chosen_responses = []
         self.rejected_responses = []
         self.prompt_ids_lens = []
-        self.same_masks = []
+        self.loss_masks = []
         self.chosen_ids = []
 
         self.tokenizer = tokenizer
@@ -290,10 +287,12 @@ class PreferenceDataset(Dataset):
             if tokenizer_chat_template:
                 self.tokenizer.chat_template = tokenizer_chat_template
 
-        self.strategy.print("Constructing preference dataset...")
-
-        for data in tqdm(buffer, disable=not self.strategy.is_rank_0()):
-            prompt, chosen, rejected, same_mask, chosen_id = (
+        for data in tqdm(
+            buffer,
+            disable=not self.strategy.is_rank_0(),
+            desc="Constructing preference dataset",
+        ):
+            prompt, chosen, rejected, loss_mask, chosen_id = (
                 _preprocess_preference_data(
                     data,
                     apply_chat_template,
@@ -307,18 +306,15 @@ class PreferenceDataset(Dataset):
                 return_tensors="pt",
             )
             prompt_ids_len = prompt_token["attention_mask"].int().sum().item()
-            # filter the sample whose length is greater than max_length (2 for answer length)
-            # if prompt_ids_len >= self.prompt_max_length - 2:
-            #     logging.warn(
-            #         "Dropping samples due to length limit; this may cause the training hang because of synchronization"
-            #     )
-            #     continue
-            # else:
+            if prompt_ids_len >= self.prompt_max_length - 2:
+                logging.warn("Masking samples with too long prompts")
+                loss_mask = True
+
             self.prompt_ids_lens.append(prompt_ids_len)
             self.prompts.append(prompt)
             self.chosen_responses.append(chosen)
             self.rejected_responses.append(rejected)
-            self.same_masks.append(same_mask)
+            self.loss_masks.append(loss_mask)
             self.chosen_ids.append(chosen_id)
 
     def __len__(self):
@@ -332,7 +328,7 @@ class PreferenceDataset(Dataset):
         )
         extra = {
             "prompt_ids_lens": self.prompt_ids_lens[idx],
-            "same_masks": self.same_masks[idx],
+            "loss_masks": self.loss_masks[idx],
             "chosen_ids": self.chosen_ids[idx],
         }  # Modify collate_fn below as well.
 
@@ -358,7 +354,7 @@ class PreferenceDataset(Dataset):
             return_tensors="pt",
         )
 
-        # to avoid EOS_token truncation
+        # Avoid EOS_token truncation.
         chosen_token["input_ids"][0][-1] = self.tokenizer.eos_token_id
         rejected_token["input_ids"][0][-1] = self.tokenizer.eos_token_id
         chosen_token["attention_mask"][0][-1] = True
@@ -377,14 +373,14 @@ class PreferenceDataset(Dataset):
         chosen_masks = []
         rejected_ids = []
         rejected_masks = []
-        extras = {"prompt_ids_lens": [], "same_masks": [], "chosen_ids": []}
+        extras = {"prompt_ids_lens": [], "loss_masks": [], "chosen_ids": []}
         for chosen_id, chosen_mask, rejected_id, rejected_mask, extra in item_list:
             chosen_ids.append(chosen_id)
             chosen_masks.append(chosen_mask)
             rejected_ids.append(rejected_id)
             rejected_masks.append(rejected_mask)
             extras["prompt_ids_lens"].append(extra["prompt_ids_lens"])
-            extras["same_masks"].append(extra["same_masks"])
+            extras["loss_masks"].append(extra["loss_masks"])
             extras["chosen_ids"].append(extra["chosen_ids"])
 
         padding_side = "right"
@@ -397,3 +393,73 @@ class PreferenceDataset(Dataset):
         )
         rejected_masks = zero_pad_sequences(rejected_masks, side=padding_side)
         return chosen_ids, chosen_masks, rejected_ids, rejected_masks, extras
+
+
+class TrajectoryDataset(Dataset):
+    def __init__(
+        self,
+        buffer: List[TrajectoryData],
+        tokenizer: Callable,
+        strategy: DeepspeedStrategy,
+        **_,
+    ) -> None:
+        super().__init__()
+        self.tokenizer = tokenizer
+
+        # Storing training data.
+        self.trajectories = []
+
+        for i in tqdm(
+            range(len(buffer)),
+            disable=not strategy.is_rank_0(),
+            desc="Constructing ppo dataset",
+        ):
+            trajectory_ids = list(buffer[i].prompt_ids) + list(buffer[i].response_ids)
+            self.trajectories.append(
+                {
+                    "input_ids": torch.tensor(trajectory_ids),
+                    "attention_mask": torch.ones(len(trajectory_ids)),
+                    "action_ids": buffer[i].response_ids,
+                    "rewards": buffer[i].rewards,
+                    "loss_masks": buffer[i].loss_mask,
+                    "prompt_ids_lens": len(buffer[i].prompt_ids),
+                    "action_logprobs": buffer[i].response_logprobs,
+                }
+            )
+
+    def __len__(self):
+        return len(self.trajectories)
+
+    def __getitem__(self, idx):
+        return self.trajectories[idx]
+
+    def collate_fn(self, item_list):
+        batch_trajectories = {
+            "input_ids": [],
+            "action_ids": [],
+            "attention_mask": [],
+            "rewards": [],
+            "loss_masks": [],
+            "prompt_ids_lens": [],
+            "action_logprobs": [],
+        }
+        for t in item_list:
+            batch_trajectories["input_ids"].append(t["input_ids"])
+            batch_trajectories["attention_mask"].append(t["attention_mask"])
+            batch_trajectories["rewards"].append(t["rewards"])
+            batch_trajectories["loss_masks"].append(t["loss_mask"])
+            batch_trajectories["prompt_ids_lens"].append(t["prompt_ids_lens"])
+            batch_trajectories["action_logprobs"].append(t["action_logprobs"])
+            batch_trajectories["action_ids"].append(t["action_ids"])
+
+        padding_side = "right"
+        batch_trajectories["input_ids"] = zero_pad_sequences(
+            batch_trajectories["input_ids"],
+            side=padding_side,
+            value=self.tokenizer.pad_token_id,
+        )
+        batch_trajectories["attention_mask"] = zero_pad_sequences(
+            batch_trajectories["attention_mask"],
+            side=padding_side,
+        )
+        return batch_trajectories

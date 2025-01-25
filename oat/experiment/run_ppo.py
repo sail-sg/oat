@@ -1,4 +1,4 @@
-# Copyright 2024 Garena Online Private Limited
+# Copyright 2025 Garena Online Private Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,39 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Offline alignment with online vLLM evaluation."""
-
-from dataclasses import dataclass
-
 import launchpad as lp
 
-from oat.args import OATArgs, default_args_validation, get_default_args
+from oat.algorithms.ppo import PPOActor, PPOArgs, PPOLearner
+from oat.args import default_args_validation, get_default_args
 from oat.interface import get_program
-from oat.learners import OfflineDAPLearner
 
 
-@dataclass
-class OfflineArgs(OATArgs):
-    """Offline DAP from a preference dataset arguments."""
-
-    preference_data: str = ""
-    prompt_key: str = "prompt"
-    chosen_key: str = "chosen"
-    rejected_key: str = "rejected"
-    offline_buffer_path: str = "./data/buffer.pkl"
-
-
-def main(args):
-    program, local_resources = get_program(args, OfflineDAPLearner)
+def run_ppo(args: PPOArgs):
+    learner_cls = PPOLearner
+    actor_cls = PPOActor
+    program, local_resources = get_program(args, learner_cls, actor_cls)
     lp.launch(
         program,
-        launch_type="local_mp",
+        launch_type=args.launch_type,
         local_resources=local_resources,
         terminal="current_terminal",
     )
 
 
 if __name__ == "__main__":
-    args = get_default_args(OfflineArgs)
+    args: PPOArgs = get_default_args(PPOArgs)
+
+    # Customization:
+    args.algo = "PPO"
+    args.online_evaluation = True  # Use GT answer for online verification.
+    args.learn_critic = True
+
     args = default_args_validation(args)
-    main(args)
+    run_ppo(args)

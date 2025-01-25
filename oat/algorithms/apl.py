@@ -33,7 +33,7 @@ from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 from vllm.outputs import RequestOutput
 
-from oat import actor
+from oat.actors import PreferenceActor
 from oat.args import OATArgs
 from oat.learners.dap import DAPLearner
 from oat.model import LLM
@@ -51,7 +51,7 @@ class APLArgs(OATArgs):
     apl_pref_certainty_only: bool = False
 
 
-class APLActor(actor.Actor):
+class APLActor(PreferenceActor):
     """Sample a large batch and filter with entropy and reward margin."""
 
     def __init__(self, ipc_server, vllm_args, args: APLArgs) -> None:
@@ -242,9 +242,7 @@ class APLLearner(DAPLearner):
                 self.process_preference_data(preference_data, raw_prompts)
 
                 if self.steps % self.update_interval == 0:
-                    train_info = self.preference_learning(
-                        self.steps // self.update_interval
-                    )
+                    train_info = self.learn(self.steps // self.update_interval)
 
                     self.eval_and_log(train_info)
 

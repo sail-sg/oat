@@ -15,8 +15,8 @@
 
 import launchpad as lp
 
+from oat.algorithms.xpo import XPOActor, XPOArgs, XPOLearner
 from oat.args import default_args_validation, get_default_args
-from oat.baselines.xpo import XPOActor, XPOArgs, XPOLearner
 from oat.interface import get_program
 
 
@@ -24,7 +24,7 @@ def run_xpo(args):
     program, local_resources = get_program(args, XPOLearner, XPOActor)
     lp.launch(
         program,
-        launch_type="local_mp",
+        launch_type=args.launch_type,
         local_resources=local_resources,
         terminal="current_terminal",
     )

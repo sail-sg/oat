@@ -13,39 +13,46 @@
 # limitations under the License.
 
 import time
-from typing import List
+from typing import List, Union
 
 import torch
 
-from oat.collectors.base import PreferenceCollector
-from oat.types import PreferenceData
+from oat.actors.base import ActorBase
+from oat.args import OATArgs
+from oat.collectors.base import FeedbackCollector
+from oat.types import PreferenceData, TrajectoryData
+from oat.utils.ipc import PlasmaShmClient
 
 
-class AsyncPreferenceCollector(PreferenceCollector):
-    def __init__(self, learner) -> None:
-        super().__init__(learner)
+class AsyncFeedbackCollector(FeedbackCollector):
+    def __init__(
+        self, args: OATArgs, actors: List[ActorBase], ipc_client: PlasmaShmClient
+    ) -> None:
+        self.args = args
+        self.actors = actors
+        self.ipc_client = ipc_client
         self.prev_fut = None
 
-    def collect_preference(
+    def collect_feedback(
         self,
-        prompts,
-        formatted_prompts,
-        refs,
+        prompts: Union[str, List[str]],
+        formatted_prompts: List[str],
+        refs: Union[str, List[str]],
     ):
         # generate response & get feedback
         st_time = time.time()
 
         if self.prev_fut is not None:
             handle = self.prev_fut.result()
-            preference_data: List[PreferenceData] = (
-                self.learner.ipc_client.deserialize_ipc(handle)
+            feedback_data: List[Union[PreferenceData, TrajectoryData]] = (
+                self.ipc_client.deserialize_ipc(handle)
             )
         else:
-            preference_data = None
+            feedback_data = None
 
         rank = torch.distributed.get_rank()
-        actor = self.learner.actors[rank % len(self.learner.actors)]
-        if self.learner.strategy.args.online_evaluation:
+        actor = self.actors[rank % len(self.actors)]
+        if self.args.online_evaluation:
             handle_fut = actor.futures.step(prompts, formatted_prompts, refs)
         else:
             handle_fut = actor.futures.step(prompts, formatted_prompts)
@@ -54,9 +61,9 @@ class AsyncPreferenceCollector(PreferenceCollector):
 
         actor_time = time.time() - st_time
 
-        if preference_data is not None:
-            metrics = self.get_metrics(actor_time, preference_data)
+        if feedback_data is not None:
+            metrics = self.get_metrics(actor_time, feedback_data)
         else:
             metrics = {}
 
-        return preference_data, metrics
+        return feedback_data, metrics

@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, List
+from typing import Any, List, Tuple
 
 import llm_blender
 import torch
 
-from oat.oracles.base import OracleBase
+from oat.oracles.base import PreferenceOracleBase
+from oat.types import Metric
 
 
-class PairRMOracle(OracleBase):
+class PairRMOracle(PreferenceOracleBase):
     def __init__(self, **_) -> None:
         super().__init__()
         self.blender = llm_blender.Blender()
@@ -34,7 +35,7 @@ class PairRMOracle(OracleBase):
         batch_size: int = 4,
         return_probs: bool = False,
         disable_tqdm: bool = False,
-    ) -> List[Any]:
+    ) -> Tuple[List[Any], Metric]:
         logits = self.blender.compare(
             inputs,
             candidates_A,
@@ -45,6 +46,6 @@ class PairRMOracle(OracleBase):
         )
         probs = torch.from_numpy(logits).sigmoid().numpy()
         if return_probs:
-            return probs
+            return probs, {}
         else:
-            return probs > 0.5
+            return probs > 0.5, {}

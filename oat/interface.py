@@ -18,7 +18,8 @@ from typing import Type
 import launchpad as lp
 from launchpad.nodes.python import local_multi_processing
 
-from oat.actor import Actor
+from oat.actors import PreferenceActor
+from oat.actors.base import ActorBase
 from oat.args import OATArgs
 from oat.learners.base import LearnerBase
 from oat.utils.ipc import PlasmaShmServer
@@ -26,7 +27,9 @@ from oat.utils.launcher import get_free_port
 
 
 def get_program(
-    args: OATArgs, learner_cls: Type[LearnerBase], actor_cls: Type[Actor] = Actor
+    args: OATArgs,
+    learner_cls: Type[LearnerBase],
+    actor_cls: Type[ActorBase] = PreferenceActor,
 ):
     """Define the default distributed program topology with configs."""
     program = lp.Program("online_dap")
@@ -62,6 +65,7 @@ def get_program(
         "gpu_memory_utilization": args.vllm_gpu_ratio,
         "dtype": "bfloat16",
         "enable_prefix_caching": False,
+        # "max_model_len": args.max_model_len,
     }
 
     actors = []

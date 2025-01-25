@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import torch
 import vllm
 
-from oat import actor
+from oat.actors import PreferenceActor
 from oat.args import OATArgs
 from oat.learners.dap import DAPLearner
 from oat.types import DAPAlgo
@@ -33,7 +33,7 @@ class XPOArgs(OATArgs):
     xpo_offload_actor_ref: bool = False
 
 
-class XPOActor(actor.Actor):
+class XPOActor(PreferenceActor):
     """Sample one response from llm and another from ref_llm."""
 
     def __init__(self, ipc_server, vllm_args, args: XPOArgs) -> None:
@@ -49,7 +49,7 @@ class XPOActor(actor.Actor):
                 k: v.cpu() for k, v in self.model.named_parameters()
             }
 
-    def generate(self, prompts: actor.List[str], sampling_params: vllm.SamplingParams):
+    def generate(self, prompts: base.List[str], sampling_params: vllm.SamplingParams):
         if self.eval_mode:
             return super().generate(prompts, sampling_params)
 

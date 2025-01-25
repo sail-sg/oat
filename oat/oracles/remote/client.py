@@ -17,20 +17,22 @@ import logging
 import threading
 import time
 from http import HTTPStatus
-from typing import Any, List
+from typing import Any, List, Tuple
 from warnings import warn
 
 import httpx
 import msgspec
 import numpy as np
+import torch
 import tree
 
-from oat.oracles.base import OracleBase
+from oat.oracles.base import PreferenceOracleBase, RewardOracleBase
+from oat.types import Metric
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-class RemoteRMOracle(OracleBase):
+class RemoteRMOracle(PreferenceOracleBase, RewardOracleBase):
     def __init__(
         self,
         remote_rm_url: str,
@@ -73,10 +75,11 @@ class RemoteRMOracle(OracleBase):
             for _ in range(self.max_retry):
                 try:
                     resp = self.client.post(
-                        "/compare",
+                        "/get_feedback",
                         content=msgspec.msgpack.encode(
                             {
                                 "batch_prompt": bp,
+                                "batch_response": [],  # Leave this empty to query preference feedback.
                                 "batch_candidates": bc,
                             }
                         ),
@@ -107,6 +110,62 @@ class RemoteRMOracle(OracleBase):
 
         first_win_probs = np.array(tree.flatten(batch_first_win_prob))
         if return_probs:
-            return first_win_probs
+            return first_win_probs, {}
         else:
-            return first_win_probs > 0.5
+            return first_win_probs > 0.5, {}
+
+    def get_reward(
+        self,
+        inputs: List[str],
+        responses: List[str],
+        references: List[str],
+        batch_size: int = 4,
+    ) -> Tuple[torch.Tensor, Metric]:
+        del references  # Not considering reference answer for now.
+
+        batched_prompts = []
+        batched_completions = []
+        num = len(inputs)
+        for ndx in range(0, num, batch_size):
+            batched_prompts.append(inputs[ndx : min(ndx + batch_size, num)])
+            batched_completions.append(responses[ndx : min(ndx + batch_size, num)])
+
+        # Define a function to get the score for a single prompt, will be called concurrently
+        def get_score(bp, br):
+            wait_time = 1
+            for _ in range(self.max_retry):
+                try:
+                    resp = self.client.post(
+                        "/get_feedback",
+                        content=msgspec.msgpack.encode(
+                            {
+                                "batch_prompt": bp,
+                                "batch_response": br,
+                                "batch_candidates": [],  # Leave this empty to query score feedback.
+                            }
+                        ),
+                        timeout=5,
+                    )
+                    if resp.status_code == HTTPStatus.OK:
+                        result = msgspec.msgpack.decode(resp.content)
+                        batch_score = result["batch_score"]
+                        break
+                    else:
+                        raise RuntimeError(f"{resp.status_code}, {resp.content}")
+                except Exception as e:
+                    warn(f"Remote RM server failure: {e}")
+                    time.sleep(wait_time)
+                    wait_time *= 1.3
+            else:
+                raise RuntimeError("Remote RM server error!")
+
+            return batch_score
+
+        # Call the remote server concurrently
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.max_workers
+        ) as executor:
+            batch_score = list(
+                executor.map(get_score, batched_prompts, batched_completions)
+            )
+        return torch.tensor(tree.flatten(batch_score)), {}

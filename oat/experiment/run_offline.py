@@ -17,7 +17,8 @@
 from dataclasses import dataclass
 
 from oat.args import OATArgs, default_args_validation, get_default_args
-from oat.learners import OfflineDAPLearner
+from oat.learners import OfflineDAPLearner, OfflineSFTLearner
+from oat.types import DAPAlgo
 
 
 @dataclass
@@ -35,7 +36,7 @@ class OfflineArgs(OATArgs):
 
 
 def main(args):
-    cls = OfflineDAPLearner
+    cls = OfflineDAPLearner if args.algo in DAPAlgo else OfflineSFTLearner
 
     def __init__(self, args):
         # Hack to discard DistributedLauncher and use deepspeed launcher.

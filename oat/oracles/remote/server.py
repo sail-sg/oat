@@ -26,11 +26,13 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 class Request(Struct, kw_only=True):
     batch_prompt: List[str]
-    batch_candidates: List[List[str]]
+    batch_response: List[str]  # For reward oracle.
+    batch_candidates: List[List[str]]  # For preference oracle.
 
 
 class Response(Struct, kw_only=True):
-    batch_first_win_prob: List[float]
+    batch_score: List[float]  # For reward oracle.
+    batch_first_win_prob: List[float]  # For preference oracle.
 
 
 MODEL_CONFIGS = {
@@ -66,6 +68,7 @@ class RewardModel(TypedMsgPackMixin, Worker):
             batch_prompt=[
                 "What is the range of the numeric output of a sigmoid node in a neural network?"
             ],
+            batch_response=[],
             batch_candidates=[
                 [
                     "The output of a sigmoid node is bounded between -1 and 1.",
@@ -76,35 +79,53 @@ class RewardModel(TypedMsgPackMixin, Worker):
 
     def forward(self, request: Request) -> Response:
         assert self.max_batch_size == 1
-        batch_msg1 = []
-        batch_msg2 = []
-        num_data = len(request.batch_prompt)
-        for i, prompt in enumerate(request.batch_prompt):
-            msg1 = [
-                {"role": "user", "content": prompt},
-                {"role": "assistant", "content": request.batch_candidates[i][0]},
-            ]
-            msg2 = [
-                {"role": "user", "content": prompt},
-                {"role": "assistant", "content": request.batch_candidates[i][1]},
-            ]
-            batch_msg1.append(msg1)
-            batch_msg2.append(msg2)
-        pair = self.tokenizer.apply_chat_template(
-            batch_msg1 + batch_msg2, tokenize=False
-        )
+
+        batch_msg = []
+        if request.batch_candidates:
+            # Rank two candidates.
+            batch_msg1 = []
+            batch_msg2 = []
+            num_data = len(request.batch_prompt)
+            for i, prompt in enumerate(request.batch_prompt):
+                msg1 = [
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": request.batch_candidates[i][0]},
+                ]
+                msg2 = [
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": request.batch_candidates[i][1]},
+                ]
+                batch_msg1.append(msg1)
+                batch_msg2.append(msg2)
+            batch_msg = batch_msg1 + batch_msg2
+        elif request.batch_response:
+            # Score a given response.
+            for i, prompt in enumerate(request.batch_prompt):
+                msg = [
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": request.batch_response[i]},
+                ]
+                batch_msg.append(msg)
+
+        pair = self.tokenizer.apply_chat_template(batch_msg, tokenize=False)
         pair = self.tokenizer(pair, return_tensors="pt", padding=True).to(
             self.model.device
         )
         with torch.no_grad():
             logits = self.model(**pair).logits.cpu().float().squeeze()
-        batch_scores_1 = logits[:num_data]
-        batch_scores_2 = logits[num_data:]
-        # Apply BT model.
-        batch_first_win_prob = (batch_scores_1 - batch_scores_2).sigmoid().tolist()
 
-        responses = Response(batch_first_win_prob=batch_first_win_prob)
-        return responses
+        if request.batch_candidates:
+            batch_scores_1 = logits[:num_data]
+            batch_scores_2 = logits[num_data:]
+            # Apply BT model.
+            batch_first_win_prob = (batch_scores_1 - batch_scores_2).sigmoid().tolist()
+            batch_score = []
+        elif request.batch_response:
+            batch_first_win_prob = []
+            batch_score = logits.tolist()
+        return Response(
+            batch_score=batch_score, batch_first_win_prob=batch_first_win_prob
+        )
 
 
 @dataclass
@@ -146,7 +167,7 @@ if __name__ == "__main__":
     )
     server.register_runtime(
         {
-            "/compare": [runtime],
+            "/get_feedback": [runtime],
         }
     )
     server.run()

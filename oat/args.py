@@ -19,7 +19,7 @@ from typing import Literal
 import torch
 import tyro
 
-from oat.types import DAPAlgo
+from oat.types import DAPAlgo, RLAlgo, SFTAlgo
 
 
 @dataclass
@@ -27,6 +27,8 @@ class OATArgs:
     """Experiment arguments."""
 
     """Resources."""
+    # Launchpad launch type
+    launch_type: str = "local_mp"
     # Number of GPUs to run the experiment.
     gpus: int = 8
     # Ratio of pre-allocated GPU memory for vLLM.
@@ -43,27 +45,48 @@ class OATArgs:
     pretrain: str = "trl-lib/pythia-1b-deduped-tldr-sft"
     # Reference model name, defaults to pretrain if None.
     ref_pretrain: str = None
+    # Critic initial model.
+    critic_pretrain: str = None
+    # Tokenizer name.
+    tokenizer: str = ""
 
-    # Direct alignment from preference methods.
-    dap_algo: Literal["DPO", "IPO", "LR_DPO", "SLiC", "SimPO", "BNF"] = "DPO"
-    # Set 1 for truly online DAP; large number for offline; intermediate value for iterative.
+    # LLM alignment algorithms.
+    algo: Literal[
+        "DPO",
+        "IPO",
+        "LR_DPO",
+        "SLiC",
+        "SimPO",
+        "BNF",
+        "SFT",
+        "PPO",
+    ] = "DPO"
+    # Set 1 for truly online algorithms; large number for offline; intermediate value for iterative.
     sync_params_every: int = 1
-    # Used in DAP losses.
+    # Used in KL-regularized losses.
     beta: float = 0.1
-    # cDPO https://arxiv.org/pdf/2305.18290.pdf.
+    # cDPO https://arxiv.org/pdf/2305.18290.
     label_smoothing: float = 0
     # SimPO https://arxiv.org/pdf/2405.14734.
     gamma_beta_ratio: float = 0.5
     # Length-Regularized DPO https://arxiv.org/pdf/2403.19159.
     len_reg_alpha: float = 0.0
+    # DPO-Positive https://arxiv.org/pdf/2402.13228.
+    dpo_positive_lambda: float = 0
+    # DPO + SFT loss coefficient.
+    sft_weight: float = 0
 
     # Oracle.
-    preference_oracle: str = "pairrm"
-    preference_oracle_batch_size: int = 1
+    oracle: str = "pairrm"
+    oracle_type: Literal["preference", "reward"] = "preference"
+    oracle_batch_size: int = 1
     remote_rm_url: str = ""
     remote_rm_client_workers: int = 4
     # Sampling a Bernoulli to get the binary feedback instead of thresholding.
     bt_sample: bool = False
+
+    # Critic.
+    learn_critic: bool = False
 
     # Epistemic reward model (for exploration).
     num_ensemble: int = 20
@@ -130,6 +153,7 @@ class OATArgs:
     eval_temperature: float = 0.0
     eval_top_p: float = 0.95
     eval_top_k: float = -1
+    eval_n: int = 1
     eval_steps: int = 20
     eval_query_interval: int = -1
     # Defaults to prompt_data if empty.
@@ -140,7 +164,7 @@ class OATArgs:
     eval_output_key: str = ""
 
     """Training specs."""
-    save_path: str = "./output"
+    save_path: str = "./oat-output"
     save_steps: int = -1
     max_save_num: int = 5
     max_save_mem: int = 1000
@@ -156,10 +180,13 @@ class OATArgs:
     r_buffer_maxlen: int = 50000
     prompt_max_length: int = 1024
     max_step_adjustment: float = 1
+    critic_max_step_adjustment: float = 1
     buffer_clear_every: float = math.inf
     dump_all_buffer: bool = False
 
     max_norm: float = 1.0
+    adam_beta_1: float = 0.9
+    adam_beta_2: float = 0.95
     l2: float = 0.0
     gradient_checkpointing: bool = False
     seed: int = 42
@@ -170,6 +197,8 @@ class OATArgs:
     bf16: bool = True
     ref_offload: bool = False
     learning_rate: float = 5e-7
+    critic_learning_rate: float = 9e-6
+    lr_scheduler: str = "cosine_with_min_lr"
     lr_warmup_ratio: float = 0.03
     zpg: int = 1
     adam_offload: bool = False
@@ -205,11 +234,21 @@ def get_default_args(args_cls=OATArgs):
 
 def default_args_validation(args: OATArgs):
     # Validation.
-    args.dap_algo = getattr(DAPAlgo, args.dap_algo)
-    if args.dap_algo != DAPAlgo.SimPO and (
+    for algo_pool in [DAPAlgo, RLAlgo, SFTAlgo]:
+        try:
+            args.algo = getattr(algo_pool, args.algo)
+            break
+        except AttributeError:
+            continue
+    else:
+        raise ValueError(f"Invalid algorithm name {args.algo}")
+
+    if args.algo != DAPAlgo.SimPO and (
         args.ref_pretrain is None or args.ref_pretrain == ""
     ):
         args.ref_pretrain = args.pretrain
+    if args.critic_pretrain is None:
+        args.critic_pretrain = args.pretrain
     if args.learn_rm:
         assert args.exp_method != "no" and args.rm_pretrain == ""
     if args.learn_rm_only:

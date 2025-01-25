@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, NamedTuple
+from typing import Any, Dict, List, NamedTuple
 
 import torch
 
@@ -30,6 +30,14 @@ class DAPAlgo(Enum):
     LR_DPO = 5
 
 
+class RLAlgo(Enum):
+    PPO = 100
+
+
+class SFTAlgo(Enum):
+    SFT = 200
+
+
 @dataclass
 class PreferenceData:
     prompt: str
@@ -39,9 +47,21 @@ class PreferenceData:
     chosen_feature: torch.Tensor = None
     rejected_feature: torch.Tensor = None
     init_clash: bool = False
-    same: bool = False
+    loss_mask: bool = True
     is_model_data: bool = False
-    info: Metric = None
+    info: Metric = {}
+
+
+@dataclass
+class TrajectoryData:
+    prompt: str
+    prompt_ids: List[int]
+    response: str
+    response_ids: List[int]
+    response_logprobs: List[float]
+    rewards: List[float]
+    loss_mask: bool = True
+    info: Metric = {}
 
 
 class RewardData(NamedTuple):

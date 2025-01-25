@@ -18,14 +18,15 @@ import os
 import threading
 import time
 import traceback
-from typing import Any, List, Sequence
+from typing import Any, List, Sequence, Tuple
 from warnings import warn
 
 import numpy as np
 from openai import OpenAI
 from scipy.special import logsumexp
 
-from oat.oracles.base import OracleBase
+from oat.oracles.base import PreferenceOracleBase
+from oat.types import Metric
 
 DEFAULT_PAIRWISE_SYSTEM_PROMPT = '''I require a leaderboard for various large language models. I'll provide you with prompts given to these models and their corresponding outputs. Your task is to assess these responses, and select the model that produces the best output from a human perspective.
 
@@ -56,7 +57,7 @@ Evaluate the models on the basis of the quality and relevance of their results, 
 '''
 
 
-class GPTJudgeOracle(OracleBase):
+class GPTJudgeOracle(PreferenceOracleBase):
     def __init__(
         self,
         reward_model_path: str,
@@ -86,7 +87,7 @@ class GPTJudgeOracle(OracleBase):
         batch_size: int = 4,
         return_probs: bool = False,
         disable_tqdm: bool = False,
-    ) -> List[Any]:
+    ) -> Tuple[List[Any], Metric]:
         del batch_size, disable_tqdm
 
         completions = list(zip(candidates_A, candidates_B))
@@ -150,9 +151,9 @@ class GPTJudgeOracle(OracleBase):
             ]
         first_win_probs = np.array(first_win_probs)
         if return_probs:
-            return first_win_probs
+            return first_win_probs, {}
         else:
-            return first_win_probs > 0.5
+            return first_win_probs > 0.5, {}
 
 
 def logprob_parser(

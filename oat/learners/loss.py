@@ -31,13 +31,17 @@ class DPOLoss(nn.Module):
         beta: float,
         label_smoothing: float = 0.0,
         len_reg_alpha: float = 0.0,
+        dpo_positive_lambda: float = 0.0,
+        sft_weight: float = 0.0,
         dap_algo=DAPAlgo.DPO,
     ) -> None:
         super().__init__()
         self.beta = beta
         self.label_smoothing = label_smoothing
-        self.dap_algo = dap_algo
+        self.dpo_positive_lambda = dpo_positive_lambda
+        self.sft_weight = sft_weight
         self.len_reg_alpha = len_reg_alpha
+        self.dap_algo = dap_algo
 
     def forward(
         self,
@@ -66,11 +70,24 @@ class DPOLoss(nn.Module):
                 )
                 # Eq. 9 https://arxiv.org/pdf/2403.19159; Length Reg in loss.
                 logits += self.len_reg_alpha / self.beta * length_diff
+
+            if self.dpo_positive_lambda > 0:
+                # Eq. 3 https://arxiv.org/pdf/2402.13228; mitigates chosen prob decreasing issue.
+                logits -= self.dpo_positive_lambda * torch.relu(
+                    reference_chosen_logps - policy_chosen_logps
+                )
             # Eq. 3 https://ericmitchell.ai/cdpo.pdf; label_smoothing=0 gives original DPO (Eq. 7 of https://arxiv.org/pdf/2305.18290.pdf)
             losses = (
                 -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)
                 - F.logsigmoid(-self.beta * logits) * self.label_smoothing
             )
+            # Add SFT loss.
+            if self.sft_weight > 0:
+                losses -= (
+                    self.sft_weight
+                    * policy_chosen_logps
+                    / token_masks.sum(-1)[: (len(token_masks) // 2)]
+                )
 
         loss = (losses * loss_masks).mean()
         chosen_rewards = (
@@ -133,10 +150,8 @@ class BNFLoss(nn.Module):
 
     def __init__(
         self,
-        dap_algo=DAPAlgo.BNF,
     ) -> None:
         super().__init__()
-        self.dap_algo = dap_algo
 
     def forward(
         self,

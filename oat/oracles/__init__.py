@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from oat.oracles.gpt import GPTJudgeOracle
+from oat.oracles.gsm8k import GSM8KOracle
 from oat.oracles.pair import PairRMOracle
 from oat.oracles.remote.client import RemoteRMOracle
 
@@ -24,4 +25,6 @@ def get_cls(model_name: str):
         return GPTJudgeOracle
     if "remote" in model_name.lower():
         return RemoteRMOracle
+    if "gsm8k" == model_name.lower():
+        return GSM8KOracle
     raise NotImplementedError
