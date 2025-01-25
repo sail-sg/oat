@@ -385,6 +385,7 @@ class PPOLearner(RLLearner):
                 mb_ref_logps = ref_logps[mini_batch_inds]
                 mb_return = returns[mini_batch_inds]
                 mb_values = values[mini_batch_inds]
+                mb_loss_masks = loss_masks[mini_batch_inds]
 
                 # Policy learning.
                 logits = self.model(mb_input_ids, attention_mask=mb_att_mask)[
@@ -408,7 +409,7 @@ class PPOLearner(RLLearner):
                 stats["ratio_min"].append(ratio.detach().min().item())
 
                 pg_loss = masked_mean(pg_loss_max, mb_response_masks, axis=1)
-                pg_loss = (pg_loss * loss_masks).mean()
+                pg_loss = (pg_loss * mb_loss_masks).mean()
                 loss = pg_loss
                 if args.beta > 0:
                     # k3 kl: http://joschu.net/blog/kl-approx.html.
@@ -420,7 +421,7 @@ class PPOLearner(RLLearner):
                         max=10,
                     )
                     reg_loss = args.beta * kl.sum(dim=1)
-                    reg_loss = (reg_loss * loss_masks).mean()
+                    reg_loss = (reg_loss * mb_loss_masks).mean()
                     loss += reg_loss
                     infos["reg_loss"] = reg_loss.detach()
 
@@ -442,7 +443,7 @@ class PPOLearner(RLLearner):
                 vf_losses2 = torch.square(value_pred_clipped - mb_return)
                 vf_loss_max = torch.max(vf_losses1, vf_losses2)
                 vf_loss = 0.5 * masked_mean(vf_loss_max, mb_response_masks, axis=1)
-                critic_loss = args.vf_coef * (vf_loss * loss_masks).mean()
+                critic_loss = args.vf_coef * (vf_loss * mb_loss_masks).mean()
 
                 self.strategy.backward(critic_loss, self.critic, self.critic_optimizer)
                 self.strategy.optimizer_step(

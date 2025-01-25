@@ -421,7 +421,7 @@ class TrajectoryDataset(Dataset):
                     "attention_mask": torch.ones(len(trajectory_ids)),
                     "action_ids": buffer[i].response_ids,
                     "rewards": buffer[i].rewards,
-                    "loss_masks": buffer[i].loss_mask,
+                    "loss_mask": buffer[i].loss_mask,
                     "prompt_ids_lens": len(buffer[i].prompt_ids),
                     "action_logprobs": buffer[i].response_logprobs,
                 }
