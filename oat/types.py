@@ -49,7 +49,7 @@ class PreferenceData:
     init_clash: bool = False
     loss_mask: bool = True
     is_model_data: bool = False
-    info: Metric = {}
+    info: Metric = None
 
 
 @dataclass
@@ -61,7 +61,7 @@ class TrajectoryData:
     response_logprobs: List[float]
     rewards: List[float]
     loss_mask: bool = True
-    info: Metric = {}
+    info: Metric = None
 
 
 class RewardData(NamedTuple):

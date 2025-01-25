@@ -34,7 +34,12 @@ from oat.actors.base import ActorBase
 from oat.args import OATArgs
 from oat.learners import OfflineLearner, RLLearner
 from oat.types import TrajectoryData
-from oat.utils.data import get_datasets, load_data_from_disk_or_hf, shard_buffer
+from oat.utils.data import (
+    TrajectoryDataset,
+    get_datasets,
+    load_data_from_disk_or_hf,
+    shard_buffer,
+)
 from oat.utils.ops import masked_mean, masked_whiten
 
 """PPO (https://arxiv.org/abs/1707.06347) with additional KL regularization."""
@@ -200,7 +205,7 @@ class PPOActor(RewardActor):
 class PPOLearner(RLLearner):
     def _init(self, args: OATArgs, actors: List[ActorBase]) -> None:
         super()._init(args, actors)
-        self.dataset_builder = TrajectoryData
+        self.dataset_builder = TrajectoryDataset
 
     def learn(self, learning_round: int):
         torch.cuda.empty_cache()
