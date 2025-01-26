@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e23f40d33e8a2fa4220e8122c152b356084b8afb/logo.png" width=90% alt="OAT" />
+  <img src="https://private-user-images.githubusercontent.com/38581401/406699387-d7c334c9-dab4-4479-9eac-8cb3c76512f6.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3Mzc4NTYwNDAsIm5iZiI6MTczNzg1NTc0MCwicGF0aCI6Ii8zODU4MTQwMS80MDY2OTkzODctZDdjMzM0YzktZGFiNC00NDc5LTllYWMtOGNiM2M3NjUxMmY2LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTAxMjYlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUwMTI2VDAxNDIyMFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWQ2MzA2ZGU2NjE4YWI4ZTgwNjAzNTZjNjc3MmQ4N2FhZDVjMTBiNWZiZTY5ZDE0NWJhNDcyYzQ3ZmZmNjE3NTcmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.s0UCZl2FfvmTA1NALWWEAfmWSQ7lg8UVsIJHdO_jFao" width=90% alt="OAT" />
 </p>
 
 [![PyPI - Version](https://img.shields.io/pypi/v/oat-llm.svg)](https://pypi.org/project/oat-llm)
@@ -11,41 +11,28 @@
 
 ---
 
+## Updates
+* 26/01/2025: We support reinforcement learning with verifiable rewards for math reasoning.
+
 ## Introduction
 
-Oat 🌾 is a simple yet efficient system for running online LLM alignment algorithms. Its key features include:
+Oat 🌾 is a simple yet efficient system for running **online** LLM alignment algorithms. Its key features include:
 
 * **High Efficiency**: Oat implements a distributed *Actor-Learner-Oracle* architecture, with each component being optimized using state-of-the-art tools:
   * `Actor`: Utilizes [vLLM](https://github.com/vllm-project/vllm) for accelerated online response sampling.
   * `Learner`: Leverages [DeepSpeed](https://github.com/microsoft/DeepSpeed) ZeRO strategies to enhance memory efficiency.
-  * `Oracle`: Hosted by [Mosec](https://github.com/mosecorg/mosec) as a remote service, supporting dynamic batching, data parallelism and pipeline parallelism.
+  * `Oracle`: Model-based oracle by [Mosec](https://github.com/mosecorg/mosec) as a remote service, supporting dynamic batching, data parallelism and pipeline parallelism.
 * **Simplified Workflow**: Oat simplifies the experimental pipeline of LLM alignment. With an `Oracle` served online, we can flexibly query it for preference data labeling as well as anytime model evaluation. All you need is to launch experiments and monitor real-time learning curves (e.g., win rate) on wandb (see [reproduced results](https://wandb.ai/lkevinzc/oat-llm)) — no need for manual training, checkpointing and loading for evaluation.
-* **Oracle Simulation**: Oat provides simulated preference oracles in various modes.
+* **Oracle Simulation**: Oat provides a diverse set of oracles to simulate preference/reward/verification feedback.
+  * Verifiable rewards supported using rule-based functions.
   * Lightweight reward models run within the actor's process, enabling quick testing on as few as two GPUs.
   * Larger and more capable reward models can be served remotely, harnessing additional compute and memory resources.
   * LLM-as-a-judge is supported via querying OpenAI API for model-based pairwise ranking.
 * **Ease of Use**: Oat's modular structure allows researchers to easily inherit and modify existing classes, enabling rapid prototyping and experimentation with new algorithms.
-* **Cutting-Edge Algorithms**: Oat implements state-of-the-art LLM exploration (active alignment) algorithms, including [SEA](https://arxiv.org/abs/2411.01493), APL and XPO, along with popular direct optimizers such as DPO and SimPO, fostering innovation and fair benchmarking.
-
-## LLM alignment as contextual dueling bandits
-
-LLM alignment is essentially an online learning and decision making problem where the **agent** (e.g., the LLM policy with an optional built-in reward model) interacts with the **environment** (i.e., humans) to achieve either of the two distinct objectives: minimizing cumulative regret in the *Explore & Exploit* setting or minimizing anytime regret in the *Best Arm Identification* setting.
-
-In our [paper](https://arxiv.org/abs/2411.01493), we formalize LLM alignment as a **contextual dueling bandit (CDB)** problem (see illustration below) and propose a sample-efficient alignment approach based on Thompson sampling.
-
-<p align="center">
-  <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e0da719024bdc16fb4a993a8405e15cb0cf2b53a/interface.png" width=80%/>
-</p>
-
-The CDB framework necessitates an efficient online training system to validate the proposed method and compare it with other baselines. Oat 🌾 is developed as part of this research initiative.
-
-Using the CDB framework, existing LLM alignment paradigms can be summarized as follows:
-
-<p align="center">
-  <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/acbb25a20dd6c1e7619539b0fa449076ade2f873/compare.png" width=95%/>
-</p>
-
-For more details, please check out our [paper](https://arxiv.org/abs/2411.01493)!
+* **Cutting-Edge Algorithms**: Oat implements state-of-the-art online algorithms, fostering innovation and fair benchmarking.
+  * PPO (online RL) for math reasoning.
+  * Online DPO/SimPO/IPO for online preference learning.
+  * Online exploration (active alignment) algorithms, including [SEA](https://arxiv.org/abs/2411.01493), APL and XPO.
 
 ## Installation
 In a python environment with supported versions (`>=3.8, <=3.10`), you could install oat via PyPI:
@@ -59,86 +46,9 @@ cd oat
 pip install vllm==0.6.2 && pip install -e .
 ```
 
-## Usage
-Below is an example to align a `1-B Pythia` SFT Model on the `tl;dr` dataset using `online SimPO` with `PairRM` as the preference oracle:
-
-> [!WARNING]
-> Aligning with `PairRM` provides a lightweight example setup. For reproducing results from the paper or developing custom online alignment algorithms, we recommend using stronger reward models (or GPT-as-a-judge) as a preference oracle. This approach better approximates the ideal case of a human population. See the [examples](./examples/README.md#preference-oracles).
-
-```diff
-python -m oat.experiment.main \
-    --gpus 2 \
-    --collocate \
-    --dap-algo SimPO \
-    --beta 2 \
-    --preference-oracle pairrm \
-    --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
-    --prompt-data lkevinzc/tldr-with-sft-reference \
-    --output_key pythia-1b-reference \
-    --sync-params-every 1 \
-    --rollout-batch-size-per-device 64 \
-    --pi-buffer-maxlen-per-device 64 \
-    --train-batch-size-per-device 8 \
-    --use-wb \
-    --wb-run-name 1b_pairrm_simpo_online
-```
-This example completes in **less than two hours on two A100-40G GPUs**!
-
-To run an `offline SimPO` baseline for comparison, we disable weights synchronization from the learner to actors by adjusting the `sync-params-every` argument:
-```diff
-python -m oat.experiment.main \
-    --gpus 2 \
-    --collocate \
-    --dap-algo SimPO \
-    --beta 2 \
-    --preference-oracle pairrm \
-    --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
-    --prompt-data lkevinzc/tldr-with-sft-reference \
-    --output_key pythia-1b-reference \
--   --sync-params-every 1 \
-+   --sync-params-every 9999 \ # any number > total gradient step (50000//128=390)
-    --rollout-batch-size-per-device 64 \
-    --pi-buffer-maxlen-per-device 64 \
-    --train-batch-size-per-device 8 \
-    --use-wb \
--   --wb-run-name 1b_pairrm_simpo_online
-+   --wb-run-name 1b_pairrm_simpo_offline
-```
-
-Finally, we run `SEA SimPO` (with $\gamma=1$, see [here](https://arxiv.org/pdf/2411.01493#page=7.60) for the meaning of $\gamma$) to verify its capability of sample-efficient alignment. This experiment utilizes 4 GPUs, with a reduced per-device training batch size to accommodate the training of an additional epistemic reward model. The per-device rollout batch size and buffer length are adjusted to ensure a global batch size of 128. Additionally, 10 response candidates are generated for exploration using BAI Thompson sampling.
-```diff
-python -m oat.experiment.main \
--   --gpus 2 \
-+   --gpus 4 \
-    --dap-algo SimPO \
-    --beta 2 \
-    --preference-oracle pairrm \
-    --pretrain trl-lib/pythia-1b-deduped-tldr-sft \
-    --prompt-data lkevinzc/tldr-with-sft-reference \
-    --output_key pythia-1b-reference \
-    --sync-params-every 1 \
--   --rollout-batch-size-per-device 64 \
--   --pi-buffer-maxlen-per-device 64 \
--   --train-batch-size-per-device 8 \
-+   --rollout-batch-size-per-device 32 \
-+   --pi-buffer-maxlen-per-device 32 \
-+   --train-batch-size-per-device 1 \
-+   --learn-rm \
-+   --exp-method EnnBAITS \
-+   --num_samples 10 \
-    --use-wb \
--   --wb-run-name 1b_pairrm_simpo_online
-+   --wb-run-name 1b_pairrm_simpo_sea
-```
-
-<p align="center">
-  <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e23f40d33e8a2fa4220e8122c152b356084b8afb/example_result.png" width=55%/>
-</p>
-
-Check out this [tutorial](./examples/) for more examples covering:
-* Various direct optimizers, including DPO, IPO, and SLiC.
-* Different modes of preference oracles, such as remote reward models and GPT-as-a-judge.
-* Additional LLM exploration algorithms, e.g., APL, XPO, and EE4LLM.
+##  Usage
+* [Improving math reasoning with PPO](./docs/reasoning_examples.md).
+* [Online preference learning with active exploration](./docs/alignment_as_cdb.md).
 
 ## Benchmarking
 The benchmarking compares oat with the online DPO implementation from [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer). Below, we outline the configurations used for oat and present the benchmarking results. Notably, oat 🌾 achieves up to **2.5x** computational efficiency compared to trl 🤗.
@@ -154,7 +64,16 @@ The benchmarking compares oat with the online DPO implementation from [huggingfa
 Please refer to [Appendix C of our paper](https://arxiv.org/pdf/2411.01493#page=17.64) for a detailed discussion of the benchmarking methods and results.
 
 ## Citation
-If you find this work useful for your research, please consider citing
+If you find this codebase useful for your research, please consider citing
+```
+@misc{liu2025oat,
+author       = {Zichen Liu and Changyu Chen and Chao Du and Wee Sun Lee and Min Lin},
+title        = {OAT: A research-friendly framework for LLM online alignment},
+howpublished = {[https://github.com/sail-sg/oat](https://github.com/sail-sg/oat)},
+year         = {2025}
+}
+```
+
 ```
 @article{
   liu2024sea,
