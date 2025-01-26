@@ -1,4 +1,4 @@
-We can easily extend oat 🌾 by running RL with rule-based rewards (results verification) to improve language model's reasoning capability. Below we show an example to run PPO on GSM8K, which improves the test score significantly **from 40.6% to 55.7% with pure RL**!
+We can easily extend oat 🌾 by running RL with rule-based rewards (result verification) to improve language model's reasoning capability. Below we show an example to run PPO on GSM8K, which improves the test score significantly **from 40.6% to 55.7% with pure RL**!
 
 ```
 python -m oat.experiment.run_ppo \
