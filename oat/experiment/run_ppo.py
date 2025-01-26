@@ -37,7 +37,6 @@ if __name__ == "__main__":
     # Customization:
     args.algo = "PPO"
     args.online_evaluation = True  # Use GT answer for online verification.
-    args.learn_critic = True
 
     args = default_args_validation(args)
     run_ppo(args)

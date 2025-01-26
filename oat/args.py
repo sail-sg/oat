@@ -84,7 +84,7 @@ class OATArgs:
     bt_sample: bool = False
 
     # Critic.
-    learn_critic: bool = False
+    critic_type: Literal["ppo", "grpo"] = "ppo"
 
     # Epistemic reward model (for exploration).
     num_ensemble: int = 20

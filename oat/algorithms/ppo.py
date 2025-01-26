@@ -237,7 +237,8 @@ class PPOLearner(RLLearner):
         learn_batch_time = []
 
         self.model.train()
-        self.critic.train()
+        if self.critic is not None:
+            self.critic.train()
         st = time.time()
         for data in dataloader:
             if local_sgd_steps > self.args.max_sgd_steps:
@@ -277,6 +278,62 @@ class PPOLearner(RLLearner):
         }
         return train_info
 
+    def compute_ppo_advantages(
+        self, rewards, input_ids, att_mask, response_masks, batch_inds
+    ):
+        all_values = []
+
+        with torch.no_grad():
+            for i in range(
+                0, len(input_ids), self.args.mini_train_batch_size_per_device
+            ):
+                ## Forward critic network.
+                batch_values = self.critic(
+                    input_ids=input_ids[batch_inds], attention_mask=att_mask[batch_inds]
+                )
+                batch_value_masks = att_mask[batch_inds].clone()[:, 1:]
+                batch_value_masks = torch.concat(
+                    [
+                        batch_value_masks,
+                        torch.zeros(len(batch_value_masks), 1, device=att_mask.device),
+                    ],
+                    axis=1,
+                )
+                batch_values = (batch_values * batch_value_masks)[:, :-1]
+                all_values.append(batch_values)
+        values = torch.cat(all_values)
+
+        # Compute gae (for policy learning) and return (for critic learning); vectorize later.
+        advantages = torch.zeros_like(rewards)
+        for i in range(len(advantages)):
+            action_inds = torch.where(response_masks[i])[0]
+            lastgaelam = 0
+            for t in reversed(action_inds):
+                nextvalues = values[i, t + 1] if t < action_inds[-1] else 0.0
+                delta = rewards[i, t] + self.args.gamma * nextvalues - values[i, t]
+                lastgaelam = delta + self.args.gamma * self.args.lam * lastgaelam
+                advantages[i, t] = lastgaelam
+
+        returns = advantages + values
+        advantages = masked_whiten(advantages, response_masks)
+
+        return advantages, returns, values
+
+    def compute_grpo_advantages(self, rewards, response_masks):
+        rewards = rewards.sum(-1)
+        # Compute grouped-wise rewards
+        mean_grouped_rewards = rewards.view(-1, self.args.num_samples).mean(dim=1)
+        std_grouped_rewards = rewards.view(-1, self.args.num_samples).std(dim=1)
+        mean_grouped_rewards = mean_grouped_rewards.repeat_interleave(
+            self.args.num_samples, dim=0
+        )
+        std_grouped_rewards = std_grouped_rewards.repeat_interleave(
+            self.args.num_samples, dim=0
+        )
+        advantages = (rewards - mean_grouped_rewards) / (std_grouped_rewards + 1e-4)
+        advantages = masked_whiten(advantages.unsqueeze(-1), response_masks)
+        return advantages
+
     def learning_step(self, trajectory):
         args: PPOArgs = self.args
         infos = {}
@@ -297,50 +354,6 @@ class PPOLearner(RLLearner):
         response_masks = completion_masks[:, 1:]
 
         self.strategy.print(f"learn data size {input_ids.shape}")
-        # Forward old models.
-        all_ref_logps = []
-        all_values = []
-        with torch.no_grad():
-            for i in range(0, len(input_ids), args.mini_train_batch_size_per_device):
-                batch_inds = torch.arange(i, i + args.mini_train_batch_size_per_device)
-                ## 1) Policy log probabilities are directly from actors.
-                ## 2) Critic.
-                batch_values = self.critic(
-                    input_ids=input_ids[batch_inds], attention_mask=att_mask[batch_inds]
-                )
-                batch_value_masks = att_mask[batch_inds].clone()[:, 1:]
-                batch_value_masks = torch.concat(
-                    [
-                        batch_value_masks,
-                        torch.zeros(len(batch_value_masks), 1, device=att_mask.device),
-                    ],
-                    axis=1,
-                )
-                batch_values = (batch_values * batch_value_masks)[:, :-1]
-                ## 3) Reference.
-                batch_ref_logits = self.ref_model(
-                    input_ids[batch_inds], attention_mask=att_mask[batch_inds]
-                )["logits"].float()
-                batch_ref_logits /= args.temperature
-                batch_ref_logps = self.get_batch_logps(
-                    batch_ref_logits,
-                    input_ids[batch_inds],
-                    response_masks[batch_inds],
-                )
-
-                all_ref_logps.append(batch_ref_logps)
-                all_values.append(batch_values)
-
-        ref_logps = torch.cat(all_ref_logps)
-        values = torch.cat(all_values)
-
-        logps = torch.zeros_like(ref_logps)
-        for i in range(len(logps)):
-            logps[i, torch.where(response_masks[i])[0]] = action_logprobs[i]
-
-        del (all_ref_logps, all_values)
-        torch.cuda.empty_cache()
-        gc.collect()
 
         indices = torch.arange(
             response_masks.size(1), device=response_masks.device
@@ -350,24 +363,44 @@ class PPOLearner(RLLearner):
         )
         eos_indices = masked_indices.max(dim=1).values
 
+        # Forward old models.
+        all_ref_logps = []
+        with torch.no_grad():
+            for i in range(0, len(input_ids), args.mini_train_batch_size_per_device):
+                batch_inds = torch.arange(i, i + args.mini_train_batch_size_per_device)
+                ## 1) Policy log probabilities are directly from actors.
+                ## 2) Reference.
+                batch_ref_logits = self.ref_model(
+                    input_ids[batch_inds], attention_mask=att_mask[batch_inds]
+                )["logits"].float()
+                batch_ref_logits /= args.temperature
+                batch_ref_logps = self.get_batch_logps(
+                    batch_ref_logits,
+                    input_ids[batch_inds],
+                    response_masks[batch_inds],
+                )
+                all_ref_logps.append(batch_ref_logps)
+
+        ref_logps = torch.cat(all_ref_logps)
+        logps = torch.zeros_like(ref_logps)
+        for i in range(len(logps)):
+            logps[i, torch.where(response_masks[i])[0]] = action_logprobs[i]
+
         # Combine final reward and kl penalty as rewards.
         kl_rewards = -args.kl_penalty_coef * (logps - ref_logps) * response_masks
         rewards = kl_rewards.clone()
         rewards[torch.arange(len(rewards)), eos_indices] += final_rewards.squeeze()
 
-        # Compute gae (for policy learning) and return (for critic learning); vectorize later.
-        advantages = torch.zeros_like(logps)
-        for i in range(len(advantages)):
-            action_inds = torch.where(response_masks[i])[0]
-            lastgaelam = 0
-            for t in reversed(action_inds):
-                nextvalues = values[i, t + 1] if t < action_inds[-1] else 0.0
-                delta = rewards[i, t] + args.gamma * nextvalues - values[i, t]
-                lastgaelam = delta + args.gamma * args.lam * lastgaelam
-                advantages[i, t] = lastgaelam
+        if self.args.critic_type == "ppo":
+            advantages, returns, values = self.compute_ppo_advantages(
+                rewards, input_ids, att_mask, response_masks, batch_inds
+            )
+        elif self.args.critic_type == "grpo":
+            advantages = self.compute_grpo_advantages(rewards, response_masks)
 
-        returns = advantages + values
-        advantages = masked_whiten(advantages, response_masks)
+        del all_ref_logps
+        torch.cuda.empty_cache()
+        gc.collect()
 
         # Compute losses and update models for multiple PPO epochs.
         stats = defaultdict(list)
@@ -383,9 +416,11 @@ class PPOLearner(RLLearner):
                 mb_response_masks = response_masks[mini_batch_inds]
                 mb_logps = logps[mini_batch_inds]
                 mb_ref_logps = ref_logps[mini_batch_inds]
-                mb_return = returns[mini_batch_inds]
-                mb_values = values[mini_batch_inds]
                 mb_loss_masks = loss_masks[mini_batch_inds]
+
+                if self.args.critic_type == "ppo":
+                    mb_return = returns[mini_batch_inds]
+                    mb_values = values[mini_batch_inds]
 
                 # Policy learning.
                 logits = self.model(mb_input_ids, attention_mask=mb_att_mask)[
@@ -399,6 +434,9 @@ class PPOLearner(RLLearner):
                 )
                 logprobs_diff = new_logps - mb_logps
                 ratio = torch.exp(logprobs_diff)
+
+                print(mb_advantage.shape, ratio.shape)
+
                 pg_losses = -mb_advantage * ratio
                 pg_losses2 = -mb_advantage * torch.clamp(
                     ratio, 1.0 - args.cliprange, 1.0 + args.cliprange
@@ -429,30 +467,33 @@ class PPOLearner(RLLearner):
                 self.strategy.optimizer_step(self.optimizer, self.model, self.scheduler)
                 infos["pg_loss"] = pg_loss.detach()
 
-                # Critic learning.
-                value_pred = self.critic(
-                    input_ids=mb_input_ids, attention_mask=mb_att_mask
-                )[:, :-1]
+                if self.args.critic_type == "ppo":
+                    # Critic learning.
+                    value_pred = self.critic(
+                        input_ids=mb_input_ids, attention_mask=mb_att_mask
+                    )[:, :-1]
 
-                value_pred_clipped = torch.clamp(
-                    value_pred,
-                    mb_values - args.cliprange_value,
-                    mb_values + args.cliprange_value,
-                )
-                vf_losses1 = torch.square(value_pred - mb_return)
-                vf_losses2 = torch.square(value_pred_clipped - mb_return)
-                vf_loss_max = torch.max(vf_losses1, vf_losses2)
-                vf_loss = 0.5 * masked_mean(vf_loss_max, mb_response_masks, axis=1)
-                critic_loss = args.vf_coef * (vf_loss * mb_loss_masks).mean()
+                    value_pred_clipped = torch.clamp(
+                        value_pred,
+                        mb_values - args.cliprange_value,
+                        mb_values + args.cliprange_value,
+                    )
+                    vf_losses1 = torch.square(value_pred - mb_return)
+                    vf_losses2 = torch.square(value_pred_clipped - mb_return)
+                    vf_loss_max = torch.max(vf_losses1, vf_losses2)
+                    vf_loss = 0.5 * masked_mean(vf_loss_max, mb_response_masks, axis=1)
+                    critic_loss = args.vf_coef * (vf_loss * mb_loss_masks).mean()
 
-                self.strategy.backward(critic_loss, self.critic, self.critic_optimizer)
-                self.strategy.optimizer_step(
-                    self.critic_optimizer, self.critic, self.critic_scheduler
-                )
-                infos["critic_loss"] = critic_loss.detach()
-                infos["vf_clipfrac"] = masked_mean(
-                    (vf_losses2 > vf_losses1).float(), mb_response_masks
-                ).detach()
+                    self.strategy.backward(
+                        critic_loss, self.critic, self.critic_optimizer
+                    )
+                    self.strategy.optimizer_step(
+                        self.critic_optimizer, self.critic, self.critic_scheduler
+                    )
+                    infos["critic_loss"] = critic_loss.detach()
+                    infos["vf_clipfrac"] = masked_mean(
+                        (vf_losses2 > vf_losses1).float(), mb_response_masks
+                    ).detach()
 
         infos.update(
             {f"{k}_nan": torch.tensor(stats[k]).isnan().sum() for k in stats.keys()}

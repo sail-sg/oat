@@ -70,7 +70,7 @@ class RLLearner(LearnerBase):
             )
             self.ref_model = None
 
-        if args.learn_critic:
+        if args.critic_type == "ppo":
             self.strategy.print("Learning critic online...")
             self.critic = Critic(
                 args.critic_pretrain,

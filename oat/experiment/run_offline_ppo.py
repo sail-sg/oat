@@ -37,7 +37,6 @@ if __name__ == "__main__":
     # Customization:
     args.algo = "PPO"
     args.online_evaluation = True  # Use GT answer for online verification.
-    args.learn_critic = True
     args.reward_key = "final_reward"  # Debugging purpose.
 
     args = default_args_validation(args)
