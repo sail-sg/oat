@@ -12,11 +12,11 @@
 ---
 
 ## Updates
-* 26/01/2025: We support reinforcement learning with verifiable rewards for math reasoning.
+* 26/01/2025: We support reinforcement learning with verifiable rewards (RLVR) for math reasoning.
 
 ## Introduction
 
-Oat 🌾 is a simple yet efficient system for running **online** LLM alignment algorithms. Its key features include:
+Oat 🌾 is a simple yet efficient framework for running **online** LLM alignment algorithms. Its key features include:
 
 * **High Efficiency**: Oat implements a distributed *Actor-Learner-Oracle* architecture, with each component being optimized using state-of-the-art tools:
   * `Actor`: Utilizes [vLLM](https://github.com/vllm-project/vllm) for accelerated online response sampling.
