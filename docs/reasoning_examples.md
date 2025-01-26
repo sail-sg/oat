@@ -1,4 +1,4 @@
-We can easily extend oat 🌾 by using rule-based rewards (results verification) to improve language model's reasoning capability. Below we show an example to run PPO on GSM8K, which improves the test score significantly **from 40.6% to 55.7% with pure RL**!
+We can easily extend oat 🌾 by running RL with rule-based rewards (results verification) to improve language model's reasoning capability. Below we show an example to run PPO on GSM8K, which improves the test score significantly **from 40.6% to 55.7% with pure RL**!
 
 ```
 python -m oat.experiment.run_ppo \
@@ -58,7 +58,7 @@ The experiment finishes in about 6 hours with 8 A100 GPUs.
 With this, we ablated how *Boltzmann exploration* (controlled by the sampling temperature) affects the learning efficiency:
 
 <p align="center">
-  <img src="https://private-user-images.githubusercontent.com/38581401/406700262-750516d5-293f-493a-b475-0875c8534db3.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3Mzc4NTczOTksIm5iZiI6MTczNzg1NzA5OSwicGF0aCI6Ii8zODU4MTQwMS80MDY3MDAyNjItNzUwNTE2ZDUtMjkzZi00OTNhLWI0NzUtMDg3NWM4NTM0ZGIzLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTAxMjYlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUwMTI2VDAyMDQ1OVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTRkNTJkMGVhOGE4OTQwMDRiZWMwNjE4Y2I3MWNhZTYwZmM4OWI3NGIxMDFjMDc4OGQwOTU0NDBkZGZmNDcxNTgmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.MoZpvu4OvcRB3hyDjljoFMhIxL8F5kWvcaPRktplHm0" width=55%/>
+  <img src="./ppo_temperature.png" width=55%/>
 </p>
 
 We look forward future studies on other efficient exploration strategies to enhance LLM reasoning.
