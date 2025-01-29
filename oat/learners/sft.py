@@ -44,17 +44,14 @@ class SFTLearner(DAPLearner):
         return infos
 
     def model_forward(self, model, input_ids, att_masks, extra):
-        device = torch.cuda.current_device()
-
         prompt_id_lens = extra["prompt_ids_lens"]
-        loss_masks = 1 - torch.tensor(extra["same_masks"]).float().to(device)
 
         output = model(input_ids, attention_mask=att_masks)
         all_logits = output["logits"]
         all_logps, _ = self.get_batch_logps(
             all_logits, input_ids, att_masks, prompt_id_lens, average_log_prob=True
         )
-        sft_loss = -(all_logps * loss_masks).mean()  # average across examples
+        sft_loss = -all_logps.mean()  # average across examples
         return sft_loss
 
 

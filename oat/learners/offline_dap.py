@@ -68,7 +68,7 @@ class OfflineDAPLearner(OfflineLearner, DAPLearner):
                         chosen_feature=None,
                         rejected_feature=None,
                         init_clash=False,
-                        same=item[args.chosen_key] == item[args.rejected_key],
+                        loss_mask=True,
                         is_model_data=False,
                         info={},
                     )
