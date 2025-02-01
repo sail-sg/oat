@@ -111,7 +111,8 @@ python examples/r1_zero_math.py \
     --rollout_batch_size 128 \
     --rollout_batch_size_per_device 32 \
     --pi_buffer_maxlen_per_device 256 \
-    --eval_batch_size 200 --eval_steps 8 \
+    --eval_batch_size 200 \
+    --eval_steps 8 \
     --eval_temperature 0 \
     --eval_generate_max_length 1024 \
     --eval_split test \
