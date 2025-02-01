@@ -122,3 +122,5 @@ python examples/r1_zero_math.py \
 <p align="center">
   <img src="./r1_zero_countdown.png" width=95%/>
 </p>
+
+To achieve this, we only need to add a reward oracle for the specific `CountDown` task (see [here](../oat/oracles/countdown.py); similar to adding a new environment in traditional RL), and oat 🌾 readily takes care of the rest of the job, demonstrating its great extendability.
