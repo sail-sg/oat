@@ -27,4 +27,6 @@ def get_cls(model_name: str):
         return RemoteRMOracle
     if "gsm8k" == model_name.lower():
         return GSM8KOracle
-    raise NotImplementedError
+    # Return None if specified oracle is not implemented in oat;
+    # in this case users need to define their own oracle.
+    return None

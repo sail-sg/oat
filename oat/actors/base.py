@@ -73,11 +73,15 @@ class ActorBase(abc.ABC):
         # ###################################
         oracle_cls = oracles.get_cls(args.oracle)
         logging.info(f"Using reward oracle {args.oracle} {oracle_cls}")
-        self.oracle = oracle_cls(
-            reward_model_path=args.oracle,
-            tokenizer_path=args.pretrain,
-            remote_rm_url=args.remote_rm_url,  # Only for remote RM.
-            max_workers=args.remote_rm_client_workers,  # Only for remote RM.
+        self.oracle = (
+            oracle_cls(
+                reward_model_path=args.oracle,
+                tokenizer_path=args.pretrain,
+                remote_rm_url=args.remote_rm_url,  # Only for remote RM.
+                max_workers=args.remote_rm_client_workers,  # Only for remote RM.
+            )
+            if oracle_cls is not None
+            else None
         )
         self.oracle_batch_size = args.oracle_batch_size
 

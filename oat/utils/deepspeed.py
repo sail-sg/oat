@@ -73,6 +73,8 @@ def get_train_ds_config(
     device = "cpu" if offload else "none"
     zero_opt_dict = {
         "stage": stage,
+        "allgather_bucket_size": 1e9,
+        "reduce_bucket_size": 1e9,
         "offload_param": {"device": device},
         "offload_optimizer": {
             "device": "cpu" if adam_offload else "none",

@@ -54,9 +54,7 @@ class FeedbackCollector:
                     "actor/init_clash_ratio": np.mean(
                         [p.init_clash for p in feedback_data]
                     ),
-                    "actor/same_response_ratio": np.mean(
-                        [p.same for p in feedback_data]
-                    ),
+                    "actor/loss_mask": np.mean([p.loss_mask for p in feedback_data]),
                     "actor/pair_edit_dist": np.mean(
                         [
                             Levenshtein.distance(p.chosen_response, p.rejected_response)

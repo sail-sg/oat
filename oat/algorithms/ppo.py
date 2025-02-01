@@ -151,9 +151,9 @@ class PPOActor(RewardActor):
                 response_logprobs[i].append(logps)
                 response_ids[i].append(token_ids)
                 # print(outputs[i].outputs[k].text)
-                if no_eos[-1]:
-                    print(outputs[i].outputs[k].token_ids)
-                    print(outputs[i].outputs[k].text)
+                # if no_eos[-1]:
+                #     print(outputs[i].outputs[k].token_ids)
+                #     print(outputs[i].outputs[k].text)
 
         info["actor/generate_time"] = time.time() - st
 
@@ -334,6 +334,9 @@ class PPOLearner(RLLearner):
         advantages = masked_whiten(advantages.unsqueeze(-1), response_masks)
         return advantages
 
+    def compute_sil_advantages(self, rewards):
+        pass
+
     def learning_step(self, trajectory):
         args: PPOArgs = self.args
         infos = {}
@@ -353,7 +356,7 @@ class PPOLearner(RLLearner):
         completion_masks = self.get_completion_mask(att_mask, prompt_id_lens)
         response_masks = completion_masks[:, 1:]
 
-        self.strategy.print(f"learn data size {input_ids.shape}")
+        # self.strategy.print(f"learn data size {input_ids.shape}")
 
         indices = torch.arange(
             response_masks.size(1), device=response_masks.device
@@ -397,6 +400,8 @@ class PPOLearner(RLLearner):
             )
         elif self.args.critic_type == "grpo":
             advantages = self.compute_grpo_advantages(rewards, response_masks)
+        elif self.args.critic_type == "sil":
+            advantages = self.compute_sil_advantages(rewards, response_masks)
 
         del all_ref_logps
         torch.cuda.empty_cache()
@@ -435,7 +440,7 @@ class PPOLearner(RLLearner):
                 logprobs_diff = new_logps - mb_logps
                 ratio = torch.exp(logprobs_diff)
 
-                print(mb_advantage.shape, ratio.shape)
+                self.strategy.print(mb_advantage.shape, ratio.shape)
 
                 pg_losses = -mb_advantage * ratio
                 pg_losses2 = -mb_advantage * torch.clamp(
@@ -468,6 +473,9 @@ class PPOLearner(RLLearner):
                 infos["pg_loss"] = pg_loss.detach()
 
                 if self.args.critic_type == "ppo":
+                    # torch.cuda.empty_cache()
+                    # gc.collect()
+
                     # Critic learning.
                     value_pred = self.critic(
                         input_ids=mb_input_ids, attention_mask=mb_att_mask
