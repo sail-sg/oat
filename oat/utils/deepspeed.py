@@ -223,7 +223,7 @@ class DeepspeedStrategy(ABC):
 
         if self.args.local_rank != -1:
             torch.cuda.set_device(self.args.local_rank)
-        # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
+        # Initializes the distributed backend which will take care of synchronizing nodes/GPUs
         deepspeed.init_distributed(timeout=timeout)
         self.world_size = dist.get_world_size()
         self.accumulated_gradient = (
