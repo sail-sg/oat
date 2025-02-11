@@ -369,7 +369,6 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         Args:
             logits: Logits of the model (unnormalized). Shape: (batch_size, sequence_length, vocab_size)
             labels: Labels for which to compute the log probabilities. Label tokens with a value of -100 are ignored. Shape: (batch_size, sequence_length)
-            average_log_prob: If True, return the average log probability per (non-masked) token. Otherwise, return the sum of the log probabilities of the (non-masked) tokens.
 
         Returns:
             all_logp: all log prob of shape (batch_size, sequence_length, vocab_size)
@@ -403,6 +402,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             "global_step": self.global_step,
             "policy_sgd_step": self.policy_sgd_step,
             "pi_buffer_len": len(self.pi_buffer),
+            "prompt_dataset_len": len(self.prompts_dataset),
             "elapse": time.time() - self.start_time,
             "update_interval": self.update_interval,
             "prompt_epoch": self.prompt_epoch,

@@ -150,10 +150,6 @@ class PPOActor(RewardActor):
 
                 response_logprobs[i].append(logps)
                 response_ids[i].append(token_ids)
-                # print(outputs[i].outputs[k].text)
-                # if no_eos[-1]:
-                #     print(outputs[i].outputs[k].token_ids)
-                #     print(outputs[i].outputs[k].text)
 
         info["actor/generate_time"] = time.time() - st
 
@@ -335,9 +331,6 @@ class PPOLearner(RLLearner):
         advantages = masked_whiten(advantages.unsqueeze(-1), response_masks)
         return advantages
 
-    def compute_sil_advantages(self, rewards):
-        pass
-
     def learning_step(self, trajectory):
         args: PPOArgs = self.args
         infos = {}
@@ -401,8 +394,6 @@ class PPOLearner(RLLearner):
             )
         elif self.args.critic_type == "grpo":
             advantages = self.compute_grpo_advantages(rewards, response_masks)
-        elif self.args.critic_type == "sil":
-            advantages = self.compute_sil_advantages(rewards, response_masks)
 
         del all_ref_logps
         torch.cuda.empty_cache()
@@ -454,7 +445,7 @@ class PPOLearner(RLLearner):
                 loss = pg_loss
                 if args.beta > 0:
                     # k3 kl: http://joschu.net/blog/kl-approx.html.
-                    log_ratio = mb_ref_logps - new_logps
+                    log_ratio = mb_ref_logps.float() - new_logps.float()
                     kl = torch.exp(log_ratio) - log_ratio - 1
                     infos["kl3"] = kl.detach()
                     kl = torch.clamp(
