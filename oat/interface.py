@@ -32,7 +32,7 @@ def get_program(
     actor_cls: Type[ActorBase] = PreferenceActor,
 ):
     """Define the default distributed program topology with configs."""
-    program = lp.Program("online_dap")
+    program = lp.Program("oat")
 
     # Resource.
     if args.collocate:
@@ -64,8 +64,9 @@ def get_program(
         "tensor_parallel_size": 1,
         "gpu_memory_utilization": args.vllm_gpu_ratio,
         "dtype": "bfloat16",
-        "enable_prefix_caching": False,
-        # "max_model_len": args.max_model_len,
+        "enable_prefix_caching": args.enable_prefix_caching,
+        "enable_sleep_mode": args.vllm_sleep,
+        "max_model_len": args.max_model_len,
     }
 
     actors = []

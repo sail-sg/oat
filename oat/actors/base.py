@@ -57,13 +57,12 @@ class ActorBase(abc.ABC):
 
         self.__vllm_version__ = vllm.__version__
 
-        assert self.__vllm_version__ >= "0.4.1", "Upgrade to vLLM >= 0.4.1"
+        assert self.__vllm_version__ >= "0.7.2", "Upgrade to vLLM >= 0.7.2"
         assert (
             self.sampling_params.n >= 2
         ), "need to sample at least 2 responses per prompt"
 
-        vllm.worker.worker.Worker = WorkerWrap
-        vllm_args.update({"seed": time.time_ns() % 2**32})
+        vllm_args.update({"seed": time.time_ns() % 2**32, "worker_cls": WorkerWrap})
         self.llm = vllm.LLM(**vllm_args)
         self.tokenizer = self.llm.get_tokenizer()
         self.model = self.llm.llm_engine.model_executor.driver_worker.model_runner.model
@@ -134,25 +133,40 @@ class ActorBase(abc.ABC):
     def init_process_group(
         self, master_address, master_port, rank_offset, world_size, group_name, backend
     ):
-        self._model_update_group = (
-            self.llm.llm_engine.model_executor.driver_worker.init_process_group(
+        self._model_update_group = self.llm.collective_rpc(
+            "init_process_group",
+            args=(
                 master_address,
                 master_port,
                 rank_offset,
                 world_size,
                 group_name,
                 backend,
-            )
+            ),
         )
 
     def is_generating(self):
         return self.generate_mode
 
-    def update_weight(self, name, dtype, shape, empty_cache=False):
-        self._stop_remote_worker_execution_loop()
-        return self.llm.llm_engine.model_executor.driver_worker.update_weight(
-            name, dtype, shape, empty_cache
+    def update_weight(
+        self, name, dtype, shape, cuda_ipc_handles=None, empty_cache=False
+    ):
+        return self.llm.collective_rpc(
+            "update_weight", args=(name, dtype, shape, cuda_ipc_handles, empty_cache)
         )
+
+    def reset_prefix_cache(self):
+        self.llm.llm_engine.reset_prefix_cache()
+
+    def sleep(self, level=1):
+        """Sleep & Wake Up.
+        sleep & wake_up are used together to offload model weights & kv cache to CPUs then onload.
+        They are particularly useful when actors & learners collocate.
+        """
+        self.llm.sleep(level=level)
+
+    def wake_up(self):
+        self.llm.wake_up()
 
     def update_rm(self, name, dtype, shape):
         assert self.learning_rm
@@ -184,9 +198,3 @@ class ActorBase(abc.ABC):
         logging.debug(f"Finished loading in {time.time() - st} seconds")
         if eval:
             self.eval_mode = False
-
-    def _stop_remote_worker_execution_loop(self):
-        # Fix error for using 2 communication group
-        # https://github.com/vllm-project/vllm/commit/eb6d3c264d0cd8e44dec16bca7947fbe96415ce9#diff-e1ad69e38e033accddfa5480ec808c4740eb39244d1ef51cc3407e20dde8cfd4
-        if self.__vllm_version__ > "0.4.2":
-            self.llm.llm_engine.model_executor.stop_remote_worker_execution_loop()

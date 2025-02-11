@@ -145,20 +145,23 @@ class WorkerWrap(Worker):
         )
         return self._model_update_group
 
-    def update_weight(self, name, dtype, shape, empty_cache=False):
-        """Broadcast weight to all vllm workers from source rank 0 (learner model)"""
+    def update_weight(
+        self, name, dtype, shape, cuda_ipc_handles=None, empty_cache=False
+    ):
+        """Broadcast weight to all vllm workers from source rank 0 (learner master)"""
         dtype = torch_type_codec(dtype)
-
-        # if torch.distributed.get_rank() == 0:
-        #     print(f"update weight: {name}, dtype: {dtype}, shape: {shape}")
-
         assert (
             dtype == self.model_config.dtype
         ), f"mismatch dtype: src {dtype}, dst {self.model_config.dtype}"
-        weight = torch.empty(shape, dtype=dtype, device="cuda")
-        torch.distributed.broadcast(weight, 0, group=self._model_update_group)
-
-        self.model_runner.model.load_weights(weights=[(name, weight)])
+        if cuda_ipc_handles:
+            # Using cuda ipc when actors and learners collocate on the same devices,
+            # because nccl will report error when two processes are on the same device.
+            raise NotImplementedError
+        else:
+            # Using nccl when actors and learners are on difference devices.
+            weight = torch.empty(shape, dtype=dtype, device="cuda")
+            torch.distributed.broadcast(weight, 0, group=self._model_update_group)
+            self.model_runner.model.load_weights(weights=[(name, weight)])
 
         del weight
         if empty_cache:

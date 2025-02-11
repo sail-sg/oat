@@ -20,7 +20,6 @@ import time
 from collections import deque
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Union
-from warnings import warn
 
 import deepspeed
 import launchpad as lp
@@ -29,7 +28,6 @@ import pandas as pd
 import torch
 import torch.distributed as dist
 import tree
-import vllm
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 from transformers.trainer import get_scheduler
@@ -200,6 +198,9 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.prompt_consumed = 0
         self.prompt_epoch = 0
         self.gradient_update_elapse = np.nan
+        self.weight_sync_elapse = np.nan
+        self.vllm_wake_up_time = 0
+        self.vllm_go_sleep_time = 0
 
         # Log summary of the learner
         strategy.print(self.model)
@@ -215,16 +216,13 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         # For ZeRO-3:
         #   1. AllGather parameters to rank 0
         #   2. Broadcast parameters from rank 0 to all vllm engines
+        backend = "gloo" if self.args.collocate else "nccl"
         if actors and strategy.is_rank_0():
             master_addr = node_ip_address_from_perspective()
             with socket.socket() as sock:
                 sock.bind(("", 0))
                 master_port = sock.getsockname()[1]
             world_size = len(actors) + 1
-            backend = "nccl"
-            if vllm.__version__ > "0.4.2":
-                backend = "gloo"
-                warn(f"Using gloo backend for vLLM version {vllm.__version__}")
             futs = [
                 actor.futures.init_process_group(
                     master_addr,
@@ -305,7 +303,9 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 self.process_feedback_data(feedback_data)
 
                 if self.steps % self.update_interval == 0:
+                    self._pre_learning()
                     train_info = self.learn(self.steps // self.update_interval)
+                    self._post_learning()
 
                     self.eval_and_log(train_info)
 
@@ -407,6 +407,9 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             "update_interval": self.update_interval,
             "prompt_epoch": self.prompt_epoch,
             "gradient_update_elapse": self.gradient_update_elapse,
+            "weight_sync_elapse": self.weight_sync_elapse,
+            "vllm_go_sleep_time": self.vllm_go_sleep_time,
+            "vllm_wake_up_time": self.vllm_wake_up_time,
         }
 
     def get_current_query(self):
@@ -497,7 +500,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
         # 3) Generate and process results
         win_rate = 0
-        win_rate_prob = 0
+        scores = 0
         response_len = 0
         if self.strategy.is_rank_0():
             processed_prompts = []
@@ -506,7 +509,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             response_lens = []
             references = []
             futs = []
-            win_probs = []
+            scores = []
             wins = []
             progress_bar = tqdm(range(len(dataloader)), desc="Evaluating")
             for i, (batch_processed_prompts, batch_prompts, refs) in enumerate(
@@ -523,10 +526,10 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 futs.append(fut)
                 if len(futs) == len(self.actors) or i == len(dataloader) - 1:
                     for fut in futs:
-                        resp, win_prob = fut.result()
+                        resp, score = fut.result()
                         responses.extend(resp)
-                        wins.extend(win_prob > 0.5)
-                        win_probs.extend(win_prob)
+                        wins.extend(score > 0.5)
+                        scores.extend(score)
                     futs.clear()
                 progress_bar.update()
 
@@ -546,11 +549,11 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 indent=4,
             )
             win_rate = np.mean(wins).item()
-            win_rate_prob = np.mean(win_probs).item()
+            scores = np.mean(scores).item()
             response_len = np.mean(tree.map_structure(lambda x: len(x), responses))
 
         win_rate = self.strategy.broadcast(win_rate)
-        win_rate_prob = self.strategy.broadcast(win_rate_prob)
+        scores = self.strategy.broadcast(scores)
         response_len = self.strategy.broadcast(response_len)
 
         # 4) Recover Actors' original behavior policy.
@@ -560,25 +563,35 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
         return {
             "eval/rm_win_rate": win_rate,
-            "eval/rm_win_rate_prob": win_rate_prob,
+            "eval/score": scores,
             "eval/elapse": time.time() - st_time,
             "eval/response_str_len": response_len,
         }
 
     def sync_params_to_actors(self):
+        st = time.time()
         self._broadcast_to_vllm()
         self.pi_beta_version += 1
+        self.weight_sync_elapse = time.time() - st
 
     def _broadcast_to_vllm(self):
         if self.args.asynchronous:
-            # Pooling util generation finishes.
+            # Pooling until generation finishes.
             while True:
                 time.sleep(0.1)
                 actors_busy = [actor.is_generating() for actor in self.actors]
                 if not any(actors_busy):
                     break
+
+        reset_prefix_cache_futs = []
+        if self.args.enable_prefix_caching and self.strategy.is_rank_0():
+            reset_prefix_cache_futs = [
+                actor.futures.reset_prefix_cache() for actor in self.actors
+            ]
+
         model = self.model.model.module
         count, num_params = 0, len(list(model.named_parameters()))
+        torch.cuda.empty_cache()
         for name, param in model.named_parameters():
             count += 1  # empty_cache at last param
 
@@ -606,3 +619,29 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 if self.strategy.is_rank_0():
                     dist.broadcast(param.data, 0, group=self._model_update_group)
                     _ = [fut.result() for fut in futs]
+
+        if reset_prefix_cache_futs:
+            _ = [fut.result() for fut in reset_prefix_cache_futs]
+        torch.cuda.empty_cache()
+        dist.barrier()
+
+    def _post_learning(self):
+        if self.args.vllm_sleep:
+            # Wake up vLLM after training.
+            st = time.time()
+            dist.barrier()
+            torch.cuda.synchronize()
+            if self.strategy.is_rank_0():
+                futs = [actor.futures.wake_up() for actor in self.actors]
+                _ = [fut.result() for fut in futs]
+            dist.barrier()
+            self.vllm_wake_up_time = time.time() - st
+
+    def _pre_learning(self):
+        if self.args.vllm_sleep:
+            # Let vLLM sleep before training.
+            st = time.time()
+            if self.strategy.is_rank_0():
+                futs = [actor.futures.sleep() for actor in self.actors]
+                _ = [fut.result() for fut in futs]
+            self.vllm_go_sleep_time = time.time() - st

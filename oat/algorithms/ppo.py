@@ -19,7 +19,7 @@ import itertools
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 import torch
@@ -440,9 +440,6 @@ class PPOLearner(RLLearner):
                 )
                 logprobs_diff = new_logps - mb_logps
                 ratio = torch.exp(logprobs_diff)
-
-                self.strategy.print(mb_advantage.shape, ratio.shape)
-
                 pg_losses = -mb_advantage * ratio
                 pg_losses2 = -mb_advantage * torch.clamp(
                     ratio, 1.0 - args.cliprange, 1.0 + args.cliprange
@@ -459,6 +456,7 @@ class PPOLearner(RLLearner):
                     # k3 kl: http://joschu.net/blog/kl-approx.html.
                     log_ratio = mb_ref_logps - new_logps
                     kl = torch.exp(log_ratio) - log_ratio - 1
+                    infos["kl3"] = kl.detach()
                     kl = torch.clamp(
                         kl * mb_response_masks,
                         min=0,

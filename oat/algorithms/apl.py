@@ -242,7 +242,9 @@ class APLLearner(DAPLearner):
                 self.process_preference_data(preference_data, raw_prompts)
 
                 if self.steps % self.update_interval == 0:
+                    self._pre_learning()
                     train_info = self.learn(self.steps // self.update_interval)
+                    self._post_learning()
 
                     self.eval_and_log(train_info)
 

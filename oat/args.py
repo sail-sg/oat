@@ -14,7 +14,7 @@
 """Argument parsing."""
 import math
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 
 import torch
 import tyro
@@ -33,8 +33,14 @@ class OATArgs:
     gpus: int = 8
     # Ratio of pre-allocated GPU memory for vLLM.
     vllm_gpu_ratio: float = 0.25
+    # Max model length.
+    max_model_len: Optional[int] = None
+    # Enable vLLM prefix caching.
+    enable_prefix_caching: bool = False
     # Actor-learner collocation.
     collocate: bool = False
+    # Offload vLLM weights & discard KV cache to collocate larger models.
+    vllm_sleep: bool = False
     # Size of Plasma shared memory.
     shm_size_mb: int = 5000
     # Asynchronous training.
