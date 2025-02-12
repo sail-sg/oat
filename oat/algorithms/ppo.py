@@ -16,6 +16,7 @@
 
 import gc
 import itertools
+import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -122,6 +123,7 @@ class PPOActor(RewardActor):
     ) -> List[TrajectoryData]:
         assert not self.eval_mode
         info = {}
+        logging.info(f"actor start")
 
         # step 1. generate
         st = time.time()
@@ -154,6 +156,7 @@ class PPOActor(RewardActor):
         info["actor/generate_time"] = time.time() - st
 
         # step 2. verify
+        st = time.time()
         rewards, _ = self.oracle.get_reward(
             list(
                 itertools.chain.from_iterable(
@@ -169,6 +172,8 @@ class PPOActor(RewardActor):
         )
         rewards = rewards.reshape(len(prompts), -1)
         no_eos = np.array(no_eos).reshape(len(prompts), -1)
+
+        info["actor/verify_time"] = time.time() - st
 
         info["actor/minibatch_accuracy"] = rewards.mean()
         info["actor/no_eos_count"] = no_eos.sum()
@@ -194,6 +199,7 @@ class PPOActor(RewardActor):
                         info=info,
                     )
                 )
+        logging.info(f"actor finished data_len={len(trajectory_data)}")
         handle = self.ipc_client.serialize_ipc(trajectory_data)
         return handle
 
@@ -236,6 +242,10 @@ class PPOLearner(RLLearner):
         if self.critic is not None:
             self.critic.train()
         st = time.time()
+
+        logging.info(
+            f"start learn() buffer_len={len(self.pi_buffer)} dl_len={len(dataloader)}"
+        )
         for data in dataloader:
             if local_sgd_steps > self.args.max_sgd_steps:
                 break
@@ -272,6 +282,8 @@ class PPOLearner(RLLearner):
                 **train_info,
             }.items()
         }
+        logging.info(f"finish learn()")
+
         return train_info
 
     def compute_ppo_advantages(
@@ -350,7 +362,7 @@ class PPOLearner(RLLearner):
         completion_masks = self.get_completion_mask(att_mask, prompt_id_lens)
         response_masks = completion_masks[:, 1:]
 
-        # self.strategy.print(f"learn data size {input_ids.shape}")
+        logging.info(f"learn data size {input_ids.shape}")
 
         indices = torch.arange(
             response_masks.size(1), device=response_masks.device
@@ -377,7 +389,6 @@ class PPOLearner(RLLearner):
                     response_masks[batch_inds],
                 )
                 all_ref_logps.append(batch_ref_logps)
-
         ref_logps = torch.cat(all_ref_logps)
         logps = torch.zeros_like(ref_logps)
         for i in range(len(logps)):
@@ -415,9 +426,25 @@ class PPOLearner(RLLearner):
                 mb_ref_logps = ref_logps[mini_batch_inds]
                 mb_loss_masks = loss_masks[mini_batch_inds]
 
+                # Remove unnecessary padding introduced by the large PPO batch.
+                mb_valid_token_count_per_pos = mb_att_mask.sum(0)
+                mb_last_valid_token_pos = torch.where(
+                    mb_valid_token_count_per_pos == 0
+                )[0]
+                if len(mb_last_valid_token_pos) >= 1:
+                    mb_last_valid_token_pos = mb_last_valid_token_pos[0]
+                else:
+                    mb_last_valid_token_pos = mb_att_mask.shape[1]
+                mb_input_ids = mb_input_ids[:, :mb_last_valid_token_pos]
+                mb_att_mask = mb_att_mask[:, :mb_last_valid_token_pos]
+                mb_response_masks = mb_response_masks[:, : mb_last_valid_token_pos - 1]
+                mb_logps = mb_logps[:, : mb_last_valid_token_pos - 1]
+                mb_ref_logps = mb_ref_logps[:, : mb_last_valid_token_pos - 1]
+
                 if self.args.critic_type == "ppo":
-                    mb_return = returns[mini_batch_inds]
-                    mb_values = values[mini_batch_inds]
+                    mb_return = returns[mini_batch_inds, :mb_last_valid_token_pos]
+                    mb_values = values[mini_batch_inds, :mb_last_valid_token_pos]
+                    mb_advantage = mb_advantage[:, :mb_last_valid_token_pos]
 
                 # Policy learning.
                 logits = self.model(mb_input_ids, attention_mask=mb_att_mask)[
@@ -445,11 +472,12 @@ class PPOLearner(RLLearner):
                 loss = pg_loss
                 if args.beta > 0:
                     # k3 kl: http://joschu.net/blog/kl-approx.html.
-                    log_ratio = mb_ref_logps.float() - new_logps.float()
+                    log_ratio = mb_ref_logps - new_logps
                     kl = torch.exp(log_ratio) - log_ratio - 1
-                    infos["kl3"] = kl.detach()
+                    kl *= mb_response_masks
+                    infos["kl3"] = kl.detach().sum(dim=1).mean()
                     kl = torch.clamp(
-                        kl * mb_response_masks,
+                        kl,
                         min=0,
                         max=10,
                     )

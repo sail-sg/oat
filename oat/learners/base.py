@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import logging
 import math
 import os
 import socket
@@ -290,6 +291,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             for processed_prompts, raw_prompts, refs in self.prompts_dataloader:
                 if early_stop:
                     break
+                # Call actor.step remotely to generate rollout & collect feedback.
                 feedback_data, self.actor_info = self.collector.collect_feedback(
                     raw_prompts, processed_prompts, refs
                 )
@@ -624,6 +626,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             _ = [fut.result() for fut in reset_prefix_cache_futs]
         torch.cuda.empty_cache()
         dist.barrier()
+        logging.info(f"weights @version={self.pi_beta_version} broadcasted to actors")
 
     def _post_learning(self):
         if self.args.vllm_sleep:
