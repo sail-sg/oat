@@ -138,7 +138,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         max_steps_to_schedule = self.max_steps * args.max_step_adjustment
 
         scheduler_specific_kwargs = {}
-        if args.lr_scheduler not in ["polynomial"]:
+        if args.lr_scheduler in ["cosine_with_min_lr"]:
             scheduler_specific_kwargs["min_lr"] = args.learning_rate * 0.1
         self.scheduler = get_scheduler(
             args.lr_scheduler,

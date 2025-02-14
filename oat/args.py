@@ -202,7 +202,9 @@ class OATArgs:
     ref_offload: bool = False
     learning_rate: float = 5e-7
     critic_learning_rate: float = 9e-6
-    lr_scheduler: str = "cosine_with_min_lr"
+    lr_scheduler: Literal["cosine_with_min_lr", "polynomial", "constant"] = (
+        "cosine_with_min_lr"
+    )
     lr_warmup_ratio: float = 0.03
     zpg: int = 1
     adam_offload: bool = False
