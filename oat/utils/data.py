@@ -60,11 +60,14 @@ def get_datasets(tokenizer, strategy, eval_only=False):
         )
     if args.eval_data:
         strategy.print(f"loading eval data {args.eval_data}")
-        if "@" in args.eval_data:
-            name, path = args.eval_data.split("@")
+        if os.path.exists(args.eval_data):
+            eval_dataset = datasets.load_from_disk(args.eval_data)
         else:
-            name, path = None, args.eval_data
-        eval_dataset = datasets.load_dataset(path, name, trust_remote_code=True)
+            if "@" in args.eval_data:
+                name, path = args.eval_data.split("@")
+            else:
+                name, path = None, args.eval_data
+            eval_dataset = datasets.load_dataset(path, name, trust_remote_code=True)
     else:
         # Share the same dataset but use different split.
         eval_dataset = prompt_dataset

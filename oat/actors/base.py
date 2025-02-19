@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import gc
 import logging
 import time
 from typing import List, Union
@@ -164,6 +165,8 @@ class ActorBase(abc.ABC):
         They are particularly useful when actors & learners collocate.
         """
         self.llm.sleep(level=level)
+        torch.cuda.empty_cache()
+        gc.collect()
 
     def wake_up(self):
         self.llm.wake_up()

@@ -68,6 +68,10 @@ class PPOArgs(OATArgs):
         default=0,
         metadata={"help": "Penalty for responses not containing eos."},
     )
+    ignore_no_eos: bool = field(
+        default=False,
+        metadata={"help": "Ignore responses that cannot finish within budget."},
+    )
     reward_scale: float = field(
         default=1.0,
         metadata={"help": "Scaling the environment rewards."},
@@ -134,6 +138,7 @@ class PPOActor(RewardActor):
         no_eos = []
         response_ids = []
         response_logprobs = []
+        resp_lens = []
         for i in range(len(outputs)):
             # for each prompt
             prompt_token_ids.append(outputs[i].prompt_token_ids)
@@ -152,6 +157,7 @@ class PPOActor(RewardActor):
 
                 response_logprobs[i].append(logps)
                 response_ids[i].append(token_ids)
+                resp_lens.append(len(token_ids))
 
         info["actor/generate_time"] = time.time() - st
 
@@ -178,6 +184,7 @@ class PPOActor(RewardActor):
         info["actor/minibatch_accuracy"] = rewards.mean()
         info["actor/no_eos_count"] = no_eos.sum()
         info["actor/num_data"] = rewards.numel()
+        info["actor/response_tok_len"] = np.mean(resp_lens)
 
         trajectory_data = []
         for i in range(len(candidates)):
@@ -196,6 +203,7 @@ class PPOActor(RewardActor):
                         response_ids=response_ids[i][j],
                         response_logprobs=response_logprobs[i][j],
                         rewards=dense_rewards,
+                        loss_mask=not no_eos[i][j] if self.args.ignore_no_eos else True,
                         info=info,
                     )
                 )
@@ -339,8 +347,7 @@ class PPOLearner(RLLearner):
         std_grouped_rewards = std_grouped_rewards.repeat_interleave(
             self.args.num_samples, dim=0
         )
-        advantages = (rewards - mean_grouped_rewards) / (std_grouped_rewards + 1e-4)
-        advantages = masked_whiten(advantages.unsqueeze(-1), response_masks)
+        advantages = (rewards - mean_grouped_rewards) / (std_grouped_rewards + 1e-8)
         return advantages
 
     def learning_step(self, trajectory):
@@ -404,7 +411,7 @@ class PPOLearner(RLLearner):
                 rewards, input_ids, att_mask, response_masks
             )
         elif self.args.critic_type == "grpo":
-            advantages = self.compute_grpo_advantages(rewards, response_masks)
+            advantages = self.compute_grpo_advantages(rewards, response_masks)[:, None]
 
         del all_ref_logps
         torch.cuda.empty_cache()
@@ -442,9 +449,9 @@ class PPOLearner(RLLearner):
                 mb_ref_logps = mb_ref_logps[:, : mb_last_valid_token_pos - 1]
 
                 if self.args.critic_type == "ppo":
-                    mb_return = returns[mini_batch_inds, :mb_last_valid_token_pos]
-                    mb_values = values[mini_batch_inds, :mb_last_valid_token_pos]
-                    mb_advantage = mb_advantage[:, :mb_last_valid_token_pos]
+                    mb_return = returns[mini_batch_inds, : mb_last_valid_token_pos - 1]
+                    mb_values = values[mini_batch_inds, : mb_last_valid_token_pos - 1]
+                    mb_advantage = mb_advantage[:, : mb_last_valid_token_pos - 1]
 
                 # Policy learning.
                 logits = self.model(mb_input_ids, attention_mask=mb_att_mask)[
@@ -468,27 +475,24 @@ class PPOLearner(RLLearner):
                 stats["ratio_min"].append(ratio.detach().min().item())
 
                 pg_loss = masked_mean(pg_loss_max, mb_response_masks, axis=1)
+                # pg_loss = masked_mean(pg_loss, mb_loss_masks)
                 pg_loss = (pg_loss * mb_loss_masks).mean()
+                infos["pg_loss"] = pg_loss.detach()
                 loss = pg_loss
-                if args.beta > 0:
-                    # k3 kl: http://joschu.net/blog/kl-approx.html.
-                    log_ratio = mb_ref_logps - new_logps
-                    kl = torch.exp(log_ratio) - log_ratio - 1
-                    kl *= mb_response_masks
-                    infos["kl3"] = kl.detach().sum(dim=1).mean()
-                    kl = torch.clamp(
-                        kl,
-                        min=0,
-                        max=10,
-                    )
-                    reg_loss = args.beta * kl.sum(dim=1)
-                    reg_loss = (reg_loss * mb_loss_masks).mean()
-                    loss += reg_loss
-                    infos["reg_loss"] = reg_loss.detach()
+                # k3 kl: http://joschu.net/blog/kl-approx.html.
+                # clamp to avoid numerical instability.
+                log_ratio = (mb_ref_logps - new_logps).clamp(-40.0, 40.0)
+                kl3 = torch.expm1(log_ratio) - log_ratio  # expm1 is more stable.
+                infos["kl3"] = (kl3 * mb_response_masks).detach().sum(1).mean()
+
+                reg_loss = masked_mean(kl3, mb_response_masks, axis=1)
+                reg_loss = args.beta * (reg_loss * mb_loss_masks).mean()
+                infos["reg_loss"] = reg_loss.detach()
+
+                loss += reg_loss
 
                 self.strategy.backward(loss, self.model, self.optimizer)
                 self.strategy.optimizer_step(self.optimizer, self.model, self.scheduler)
-                infos["pg_loss"] = pg_loss.detach()
 
                 if self.args.critic_type == "ppo":
                     # torch.cuda.empty_cache()

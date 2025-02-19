@@ -153,17 +153,6 @@ class PreferenceActor(ActorBase):
         formatted_prompts: List[str],
         references: List[str] = None,
     ) -> List[PreferenceData]:
-        """Step the actor.
-
-        Given a prompt x, K responses {y_1, ..., y_K} are sample from the behavior LLM pi_beta,
-        from which 2 responses are selected to query the oracle for preference signal.
-        The final constructed pair (x, y_w, y_l) is inserted into the replay buffer for learners.
-
-        Args:
-            prompts: A list of prompt texts.
-            formatted_prompts: A list of chat template formatted prompt texts.
-            references: A list of reference texts.
-        """
         assert not self.eval_mode
         info = {}
 

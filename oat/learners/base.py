@@ -503,20 +503,23 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         # 3) Generate and process results
         win_rate = 0
         scores = 0
+        accuracy = 0
         response_len = 0
+        eval_count = 0
         if self.strategy.is_rank_0():
             processed_prompts = []
             prompts = []
             responses = []
-            response_lens = []
             references = []
             futs = []
             scores = []
             wins = []
+            accuracies = []
             progress_bar = tqdm(range(len(dataloader)), desc="Evaluating")
             for i, (batch_processed_prompts, batch_prompts, refs) in enumerate(
                 dataloader
             ):
+                eval_count += len(batch_prompts)
                 processed_prompts.extend(batch_processed_prompts)
                 prompts.extend(batch_prompts)
                 references.extend(refs)
@@ -530,7 +533,8 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                     for fut in futs:
                         resp, score = fut.result()
                         responses.extend(resp)
-                        wins.extend(score > 0.5)
+                        wins.extend(score > 0.5)  # For preference learning.
+                        accuracies.extend(score == 1)  # For RL with verifiable rewards.
                         scores.extend(score)
                     futs.clear()
                 progress_bar.update()
@@ -541,6 +545,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 {
                     self.eval_input_key: prompts,
                     "output": responses,
+                    "scores": scores,
                     f"format_{self.eval_input_key}": processed_prompts,
                     "reference": references,
                     "generator": self.args.wb_run_name,
@@ -552,20 +557,28 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             )
             win_rate = np.mean(wins).item()
             scores = np.mean(scores).item()
+            accuracy = np.mean(accuracies).item()
             response_len = np.mean(tree.map_structure(lambda x: len(x), responses))
+
+        dist.barrier()
 
         win_rate = self.strategy.broadcast(win_rate)
         scores = self.strategy.broadcast(scores)
+        accuracy = self.strategy.broadcast(accuracy)
         response_len = self.strategy.broadcast(response_len)
+        eval_count = self.strategy.broadcast(eval_count)
 
         # 4) Recover Actors' original behavior policy.
         if self.strategy.is_rank_0():
             done = [actor.futures.notify_eval_done() for actor in self.actors]
             _ = [d.result() for d in done]
 
+        dist.barrier()
         return {
             "eval/rm_win_rate": win_rate,
             "eval/score": scores,
+            "eval/accuracy": accuracy,
+            "eval/eval_count": eval_count,
             "eval/elapse": time.time() - st_time,
             "eval/response_str_len": response_len,
         }
@@ -577,6 +590,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.weight_sync_elapse = time.time() - st
 
     def _broadcast_to_vllm(self):
+        dist.barrier()
         if self.args.asynchronous:
             # Pooling until generation finishes.
             while True:
@@ -644,7 +658,9 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         if self.args.vllm_sleep:
             # Let vLLM sleep before training.
             st = time.time()
+            dist.barrier()
             if self.strategy.is_rank_0():
                 futs = [actor.futures.sleep() for actor in self.actors]
                 _ = [fut.result() for fut in futs]
+            dist.barrier()
             self.vllm_go_sleep_time = time.time() - st

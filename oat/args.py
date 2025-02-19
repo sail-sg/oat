@@ -271,11 +271,6 @@ def default_args_validation(args: OATArgs):
         args.max_queries = args.max_train
     if args.asynchronous:
         assert not args.collocate, "async training needs to disable collocation"
-    args.max_model_len = (
-        args.prompt_max_length
-        + max(args.generate_max_length, args.eval_generate_max_length)
-        + 128
-    )
     gpu_available = torch.cuda.device_count()
     assert (
         gpu_available >= args.gpus
