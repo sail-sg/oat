@@ -531,7 +531,7 @@ class PPOLearner(RLLearner):
         logits: torch.FloatTensor,
         labels: torch.LongTensor,
         completion_masks: torch.LongTensor,
-    ) -> torch.Tuple[torch.Tensor]:
+    ):
         assert logits.shape[:-1] == labels.shape
 
         labels = labels[:, 1:].clone()
