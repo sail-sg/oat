@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import abc
-import gc
 import logging
 import time
 from typing import List, Union
@@ -59,9 +58,6 @@ class ActorBase(abc.ABC):
         self.__vllm_version__ = vllm.__version__
 
         assert self.__vllm_version__ >= "0.7.2", "Upgrade to vLLM >= 0.7.2"
-        assert (
-            self.sampling_params.n >= 2
-        ), "need to sample at least 2 responses per prompt"
 
         vllm_args.update({"seed": time.time_ns() % 2**32, "worker_cls": WorkerWrap})
         self.llm = vllm.LLM(**vllm_args)
@@ -165,8 +161,6 @@ class ActorBase(abc.ABC):
         They are particularly useful when actors & learners collocate.
         """
         self.llm.sleep(level=level)
-        torch.cuda.empty_cache()
-        gc.collect()
 
     def wake_up(self):
         self.llm.wake_up()
@@ -198,6 +192,8 @@ class ActorBase(abc.ABC):
         logging.debug("Start loading from cpu...")
         st = time.time()
         self.model.load_state_dict(self.cache_model_state)
+        if self.args.enable_prefix_caching:
+            self.reset_prefix_cache()
         logging.debug(f"Finished loading in {time.time() - st} seconds")
         if eval:
             self.eval_mode = False

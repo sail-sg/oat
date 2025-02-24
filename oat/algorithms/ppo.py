@@ -20,7 +20,7 @@ import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -67,6 +67,18 @@ class PPOArgs(OATArgs):
     non_stop_penalty: float = field(
         default=0,
         metadata={"help": "Penalty for responses not containing eos."},
+    )
+    non_stop_fixed_reward: Optional[float] = field(
+        default=None,
+        metadata={"help": "Fixed reward for responses not containing eos."},
+    )
+    vanilla_adv: bool = field(
+        default=False,
+        metadata={"help": "Compute vanilla adv using MC baseline."},
+    )
+    reinforce_update: bool = field(
+        default=False,
+        metadata={"help": "The simplest REINFORCE updates."},
     )
     ignore_no_eos: bool = field(
         default=False,
@@ -181,17 +193,22 @@ class PPOActor(RewardActor):
 
         info["actor/verify_time"] = time.time() - st
 
-        info["actor/minibatch_accuracy"] = rewards.mean()
+        logging.info(f"actor reward {rewards.mean()}")
+        info["actor/rewards"] = rewards.mean()
         info["actor/no_eos_count"] = no_eos.sum()
         info["actor/num_data"] = rewards.numel()
         info["actor/response_tok_len"] = np.mean(resp_lens)
+        info["actor/sampling_max_tokens"] = self.sampling_params.max_tokens
+        info["actor/sampling_temperature"] = self.sampling_params.temperature
 
         trajectory_data = []
         for i in range(len(candidates)):
             prompt = prompts[i]
             candidates_per_prompt = candidates[i]
             for j in range(len(candidates_per_prompt)):
-                reward = rewards[i][j]
+                reward = rewards[i][j].item()
+                if self.args.non_stop_fixed_reward is not None and no_eos[i][j]:
+                    reward = self.args.non_stop_fixed_reward
                 reward += self.args.non_stop_penalty if no_eos[i][j] else 0
                 dense_rewards = [0] * len(response_ids[i][j])
                 dense_rewards[-1] = reward
@@ -213,7 +230,7 @@ class PPOActor(RewardActor):
 
 
 class PPOLearner(RLLearner):
-    def _init(self, args: OATArgs, actors: List[ActorBase]) -> None:
+    def _init(self, args: PPOArgs, actors: List[ActorBase]) -> None:
         super()._init(args, actors)
         self.dataset_builder = TrajectoryDataset
 
@@ -340,14 +357,16 @@ class PPOLearner(RLLearner):
         rewards = rewards.sum(-1)
         # Compute grouped-wise rewards
         mean_grouped_rewards = rewards.view(-1, self.args.num_samples).mean(dim=1)
-        std_grouped_rewards = rewards.view(-1, self.args.num_samples).std(dim=1)
         mean_grouped_rewards = mean_grouped_rewards.repeat_interleave(
             self.args.num_samples, dim=0
         )
-        std_grouped_rewards = std_grouped_rewards.repeat_interleave(
-            self.args.num_samples, dim=0
-        )
-        advantages = (rewards - mean_grouped_rewards) / (std_grouped_rewards + 1e-8)
+        advantages = rewards - mean_grouped_rewards
+        if not self.args.vanilla_adv:
+            std_grouped_rewards = rewards.view(-1, self.args.num_samples).std(dim=1)
+            std_grouped_rewards = std_grouped_rewards.repeat_interleave(
+                self.args.num_samples, dim=0
+            )
+            advantages = advantages / (std_grouped_rewards + 1e-8)
         return advantages
 
     def learning_step(self, trajectory):
@@ -380,30 +399,61 @@ class PPOLearner(RLLearner):
         eos_indices = masked_indices.max(dim=1).values
 
         # Forward old models.
-        all_ref_logps = []
+        ## 1) (Option 1) Policy log probabilities are directly from actors (vLLM).
+        # logps = torch.zeros_like(response_masks).float()
+        # for i in range(len(logps)):
+        #     logps[i, torch.where(response_masks[i])[0]] = action_logprobs[i]
+        ## 2) (Option 2) Reevaluate log probabilities using learner model.
+        all_logps = []
         with torch.no_grad():
             for i in range(0, len(input_ids), args.mini_train_batch_size_per_device):
                 batch_inds = torch.arange(i, i + args.mini_train_batch_size_per_device)
-                ## 1) Policy log probabilities are directly from actors.
-                ## 2) Reference.
-                batch_ref_logits = self.ref_model(
+
+                batch_logits = self.model(
                     input_ids[batch_inds], attention_mask=att_mask[batch_inds]
                 )["logits"].float()
-                batch_ref_logits /= args.temperature
-                batch_ref_logps = self.get_batch_logps(
-                    batch_ref_logits,
+                batch_logits /= args.temperature
+                batch_logps = self.get_batch_logps(
+                    batch_logits,
                     input_ids[batch_inds],
                     response_masks[batch_inds],
                 )
-                all_ref_logps.append(batch_ref_logps)
-        ref_logps = torch.cat(all_ref_logps)
-        logps = torch.zeros_like(ref_logps)
-        for i in range(len(logps)):
-            logps[i, torch.where(response_masks[i])[0]] = action_logprobs[i]
+                all_logps.append(batch_logps)
+            logps = torch.cat(all_logps)
+            del all_logps
 
-        # Combine final reward and kl penalty as rewards.
-        kl_rewards = -args.kl_penalty_coef * (logps - ref_logps) * response_masks
-        rewards = kl_rewards.clone()
+        ## 2) Reference.
+        if self.ref_model is not None:
+            all_ref_logps = []
+            with torch.no_grad():
+                for i in range(
+                    0, len(input_ids), args.mini_train_batch_size_per_device
+                ):
+                    batch_inds = torch.arange(
+                        i, i + args.mini_train_batch_size_per_device
+                    )
+
+                    batch_ref_logits = self.ref_model(
+                        input_ids[batch_inds], attention_mask=att_mask[batch_inds]
+                    )["logits"].float()
+                    batch_ref_logits /= args.temperature
+                    batch_ref_logps = self.get_batch_logps(
+                        batch_ref_logits,
+                        input_ids[batch_inds],
+                        response_masks[batch_inds],
+                    )
+                    all_ref_logps.append(batch_ref_logps)
+            ref_logps = torch.cat(all_ref_logps)
+
+            # Combine final reward and kl penalty as rewards.
+            kl_rewards = -args.kl_penalty_coef * (logps - ref_logps) * response_masks
+            rewards = kl_rewards.clone()
+            del all_ref_logps
+            torch.cuda.empty_cache()
+            gc.collect()
+        else:
+            rewards = torch.zeros_like(response_masks).float()
+
         rewards[torch.arange(len(rewards)), eos_indices] += final_rewards.squeeze()
 
         if self.args.critic_type == "ppo":
@@ -412,10 +462,6 @@ class PPOLearner(RLLearner):
             )
         elif self.args.critic_type == "grpo":
             advantages = self.compute_grpo_advantages(rewards, response_masks)[:, None]
-
-        del all_ref_logps
-        torch.cuda.empty_cache()
-        gc.collect()
 
         # Compute losses and update models for multiple PPO epochs.
         stats = defaultdict(list)
@@ -430,7 +476,6 @@ class PPOLearner(RLLearner):
                 mb_att_mask = att_mask[mini_batch_inds]
                 mb_response_masks = response_masks[mini_batch_inds]
                 mb_logps = logps[mini_batch_inds]
-                mb_ref_logps = ref_logps[mini_batch_inds]
                 mb_loss_masks = loss_masks[mini_batch_inds]
 
                 # Remove unnecessary padding introduced by the large PPO batch.
@@ -442,11 +487,22 @@ class PPOLearner(RLLearner):
                     mb_last_valid_token_pos = mb_last_valid_token_pos[0]
                 else:
                     mb_last_valid_token_pos = mb_att_mask.shape[1]
+                # # Further reduce valid token num to speed up IF:
+                # ## 1. We only have PG loss, i.e., args.beta == 0.
+                # ## 2. Advantage is zero in bandit case (e.g., GRPO).
+                # ## 3. mini_train_batch_size_per_device is 1.
+                # if (
+                #     args.beta == 0
+                #     and self.args.critic_type == "grpo"
+                #     and len(mb_advantage) == 1
+                # ):
+                #     zero_adv = (mb_advantage == 0).item()  # bool
+                #     if zero_adv:
+                #         mb_last_valid_token_pos = 7  # An unimportant magic number.
                 mb_input_ids = mb_input_ids[:, :mb_last_valid_token_pos]
                 mb_att_mask = mb_att_mask[:, :mb_last_valid_token_pos]
                 mb_response_masks = mb_response_masks[:, : mb_last_valid_token_pos - 1]
                 mb_logps = mb_logps[:, : mb_last_valid_token_pos - 1]
-                mb_ref_logps = mb_ref_logps[:, : mb_last_valid_token_pos - 1]
 
                 if self.args.critic_type == "ppo":
                     mb_return = returns[mini_batch_inds, : mb_last_valid_token_pos - 1]
@@ -463,33 +519,41 @@ class PPOLearner(RLLearner):
                     mb_input_ids,
                     mb_response_masks,
                 )
-                logprobs_diff = new_logps - mb_logps
-                ratio = torch.exp(logprobs_diff)
-                pg_losses = -mb_advantage * ratio
-                pg_losses2 = -mb_advantage * torch.clamp(
-                    ratio, 1.0 - args.cliprange, 1.0 + args.cliprange
-                )
-                pg_loss_max = torch.max(pg_losses, pg_losses2)
+                if args.reinforce_update:
+                    pg_loss = -mb_advantage * new_logps
+                else:
+                    logprobs_diff = new_logps - mb_logps
+                    ratio = torch.exp(logprobs_diff)
+                    pg_losses = -mb_advantage * ratio
+                    pg_losses2 = -mb_advantage * torch.clamp(
+                        ratio, 1.0 - args.cliprange, 1.0 + args.cliprange
+                    )
+                    pg_loss_max = torch.max(pg_losses, pg_losses2)
 
-                stats["ratio_max"].append(ratio.detach().max().item())
-                stats["ratio_min"].append(ratio.detach().min().item())
+                    stats["ratio_max"].append(ratio.detach().max().item())
+                    stats["ratio_min"].append(ratio.detach().min().item())
+                    stats["zero_pg_loss_count"].append(
+                        (pg_loss_max == 0).detach().sum().item()
+                    )
 
-                pg_loss = masked_mean(pg_loss_max, mb_response_masks, axis=1)
+                    pg_loss = masked_mean(pg_loss_max, mb_response_masks, axis=1)
                 # pg_loss = masked_mean(pg_loss, mb_loss_masks)
                 pg_loss = (pg_loss * mb_loss_masks).mean()
                 infos["pg_loss"] = pg_loss.detach()
                 loss = pg_loss
-                # k3 kl: http://joschu.net/blog/kl-approx.html.
-                # clamp to avoid numerical instability.
-                log_ratio = (mb_ref_logps - new_logps).clamp(-40.0, 40.0)
-                kl3 = torch.expm1(log_ratio) - log_ratio  # expm1 is more stable.
-                infos["kl3"] = (kl3 * mb_response_masks).detach().sum(1).mean()
+                if args.beta > 0:
+                    mb_ref_logps = ref_logps[mini_batch_inds]
+                    mb_ref_logps = mb_ref_logps[:, : mb_last_valid_token_pos - 1]
+                    # k3 kl: http://joschu.net/blog/kl-approx.html.
+                    # clamp to avoid numerical instability.
+                    log_ratio = (mb_ref_logps - new_logps).clamp(-40.0, 40.0)
+                    kl3 = torch.expm1(log_ratio) - log_ratio  # expm1 is more stable.
+                    infos["kl3"] = (kl3 * mb_response_masks).detach().sum(1).mean()
 
-                reg_loss = masked_mean(kl3, mb_response_masks, axis=1)
-                reg_loss = args.beta * (reg_loss * mb_loss_masks).mean()
-                infos["reg_loss"] = reg_loss.detach()
-
-                loss += reg_loss
+                    reg_loss = masked_mean(kl3, mb_response_masks, axis=1)
+                    reg_loss = args.beta * (reg_loss * mb_loss_masks).mean()
+                    infos["reg_loss"] = reg_loss.detach()
+                    loss += reg_loss
 
                 self.strategy.backward(loss, self.model, self.optimizer)
                 self.strategy.optimizer_step(self.optimizer, self.model, self.scheduler)
@@ -525,14 +589,31 @@ class PPOLearner(RLLearner):
                         (vf_losses2 > vf_losses1).float(), mb_response_masks
                     ).detach()
 
+                with torch.no_grad():
+                    if not args.reinforce_update:
+                        pg_clipfrac = masked_mean(
+                            (pg_losses2 > pg_losses).float(), mb_response_masks, axis=1
+                        )
+                        stats["pg_clipfrac"].append(pg_clipfrac.mean().min().item())
+
         infos.update(
             {f"{k}_nan": torch.tensor(stats[k]).isnan().sum() for k in stats.keys()}
         )
         infos.update(
             {f"{k}_inf": torch.tensor(stats[k]).isinf().sum() for k in stats.keys()}
         )
-        infos["ratio_max"] = torch.tensor(stats["ratio_max"]).max()
-        infos["ratio_min"] = torch.tensor(stats["ratio_min"]).min()
+        if not args.reinforce_update:
+            infos["ratio_max"] = torch.tensor(stats["ratio_max"]).max()
+            infos["ratio_max"] = torch.tensor(stats["ratio_max"]).max()
+            infos["zero_pg_loss_count"] = (
+                torch.tensor(stats["zero_pg_loss_count"]).float().mean()
+            )
+            infos["pg_clipfrac"] = torch.tensor(stats["pg_clipfrac"]).mean()
+        infos["adv_mean"] = advantages.mean().cpu()
+        infos["adv_min"] = advantages.min().cpu()
+        infos["adv_max"] = advantages.max().cpu()
+        infos["all_zero_rewards_count"] = (final_rewards.mean(-1) == 0).sum().cpu()
+        infos["all_one_rewards_count"] = (final_rewards.mean(-1) == 1).sum().cpu()
 
         return infos
 

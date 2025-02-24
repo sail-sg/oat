@@ -34,6 +34,9 @@ class PreferenceActor(ActorBase):
 
     def __init__(self, ipc_server, vllm_args, args: OATArgs) -> None:
         super().__init__(ipc_server, vllm_args, args)
+        assert (
+            self.sampling_params.n >= 2
+        ), "need to sample at least 2 responses per prompt"
         # ###################################
         # ####        Exploration        ####
         # ###################################

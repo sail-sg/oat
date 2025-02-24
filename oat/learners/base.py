@@ -295,7 +295,6 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 feedback_data, self.actor_info = self.collector.collect_feedback(
                     raw_prompts, processed_prompts, refs
                 )
-                del raw_prompts, processed_prompts
 
                 if feedback_data is None:
                     # Asynchronous prefilling, data is stored in collector's buffer.
@@ -303,6 +302,22 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 self.prompt_consumed += len(feedback_data)
 
                 self.process_feedback_data(feedback_data)
+
+                if (
+                    self.args.dump_replay_every > 0
+                    and self.steps % self.args.dump_replay_every == 0
+                ):
+                    if not self.strategy.is_rank_0():
+                        dist.gather_object(self.pi_buffer)
+                    else:
+                        gather_all_buffer = [None] * self.strategy.world_size
+                        dist.gather_object(self.pi_buffer, gather_all_buffer)
+                        pd.to_pickle(
+                            (processed_prompts, refs, gather_all_buffer),
+                            os.path.join(
+                                self.save_path, f"buffer_step{self.steps:05}.pkl"
+                            ),
+                        )
 
                 if self.steps % self.update_interval == 0:
                     self._pre_learning()
@@ -558,7 +573,9 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             win_rate = np.mean(wins).item()
             scores = np.mean(scores).item()
             accuracy = np.mean(accuracies).item()
-            response_len = np.mean(tree.map_structure(lambda x: len(x), responses))
+            response_len = np.mean(
+                tree.map_structure(lambda x: len(self.tokenizer.encode(x)), responses)
+            )
 
         dist.barrier()
 
@@ -580,7 +597,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             "eval/accuracy": accuracy,
             "eval/eval_count": eval_count,
             "eval/elapse": time.time() - st_time,
-            "eval/response_str_len": response_len,
+            "eval/response_tok_len": response_len,
         }
 
     def sync_params_to_actors(self):

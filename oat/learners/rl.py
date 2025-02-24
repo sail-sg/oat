@@ -42,7 +42,7 @@ class RLLearner(LearnerBase):
         super()._init(args, actors)
         assert self.algo in RLAlgo
 
-        if self.algo == RLAlgo.PPO:
+        if self.algo == RLAlgo.PPO and (args.beta > 0 or args.kl_penalty_coef > 0):
             # Reference policy for regularization.
             self.strategy.print("Running KL-regularized algorithm...")
             assert args.ref_pretrain, "Reference model must be non-empty"

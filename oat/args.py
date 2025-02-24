@@ -187,6 +187,7 @@ class OATArgs:
     critic_max_step_adjustment: float = 1
     buffer_clear_every: float = math.inf
     dump_all_buffer: bool = False
+    dump_replay_every: int = -1
 
     max_norm: float = 1.0
     adam_beta_1: float = 0.9

@@ -227,23 +227,17 @@ class PromptDataset(Dataset):
                 )
             else:
                 prompt = data[input_key]
-            if get_reference:
-                return data[input_key], prompt, data[output_key]
-            return data[input_key], prompt
+            return data[input_key], prompt, data[output_key]
 
         for data in tqdm(dataset, disable=not self.strategy.is_rank_0()):
-            if get_reference:
-                prompt, processed_prompt, reference = preprocess_data(
-                    data, input_key, apply_chat_template
-                )
-                self.references.append(reference)
-            else:
-                prompt, processed_prompt = preprocess_data(
-                    data, input_key, apply_chat_template
-                )
+            prompt, processed_prompt, reference = preprocess_data(
+                data, input_key, apply_chat_template
+            )
             if len(tokenizer(processed_prompt)["input_ids"]) <= self.prompt_max_length:
                 self.processed_prompts.append(processed_prompt)
                 self.raw_prompts.append(prompt)
+                if self.get_reference:
+                    self.references.append(reference)
 
     def __len__(self):
         return len(self.raw_prompts)
