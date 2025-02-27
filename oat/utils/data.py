@@ -412,6 +412,9 @@ class TrajectoryDataset(Dataset):
             desc="Constructing ppo dataset",
         ):
             trajectory_ids = list(buffer[i].prompt_ids) + list(buffer[i].response_ids)
+            if tokenizer.eos_token_id not in trajectory_ids:
+                # TODO: clean up action_logprobs from actor side.
+                trajectory_ids.append(tokenizer.eos_token_id)
             self.trajectories.append(
                 {
                     "input_ids": torch.tensor(trajectory_ids),

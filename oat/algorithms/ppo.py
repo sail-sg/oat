@@ -160,9 +160,7 @@ class PPOActor(RewardActor):
             for k in range(self.sampling_params.n):
                 # for each response
                 candidates[i].append(outputs[i].outputs[k].text)
-                no_eos.append(
-                    self.tokenizer.eos_token_id not in outputs[i].outputs[k].token_ids
-                )
+                no_eos.append(outputs[i].outputs[k].finish_reason == "length")
                 token_ids = outputs[i].outputs[k].token_ids
                 logps = outputs[i].outputs[k].logprobs
                 logps = [item[token_ids[i]].logprob for i, item in enumerate(logps)]
@@ -381,9 +379,9 @@ class PPOLearner(RLLearner):
             .reshape(-1, 1)
         ).float() * args.reward_scale
         prompt_id_lens = trajectory["prompt_ids_lens"]
-        action_logprobs = [
-            torch.tensor(lp).to(device) for lp in trajectory["action_logprobs"]
-        ]
+        # action_logprobs = [
+        #     torch.tensor(lp).to(device) for lp in trajectory["action_logprobs"]
+        # ]
         loss_masks = torch.tensor(trajectory["loss_masks"]).float().to(device)
         completion_masks = self.get_completion_mask(att_mask, prompt_id_lens)
         response_masks = completion_masks[:, 1:]
