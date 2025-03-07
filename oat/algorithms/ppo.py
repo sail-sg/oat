@@ -41,7 +41,7 @@ from oat.utils.data import (
     load_data_from_disk_or_hf,
     shard_buffer,
 )
-from oat.utils.ops import masked_mean, masked_whiten, masked_sum
+from oat.utils.ops import masked_mean, masked_sum, masked_whiten
 
 """PPO (https://arxiv.org/abs/1707.06347) with optional KL regularization."""
 
