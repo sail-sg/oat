@@ -46,11 +46,14 @@ class OfflineDAPLearner(OfflineLearner, DAPLearner):
             for item in tqdm(
                 data, desc="loading preference data", disable=not strategy.is_rank_0()
             ):
-                format_prompt = tokenizer.apply_chat_template(
-                    [{"role": "user", "content": item[args.prompt_key]}],
-                    tokenize=True,
-                    add_generation_prompt=True,
-                )
+                if args.apply_chat_template and tokenizer.chat_template:
+                    format_prompt = tokenizer.apply_chat_template(
+                        [{"role": "user", "content": item[args.prompt_key]}],
+                        tokenize=True,
+                        add_generation_prompt=True,
+                    )
+                else:
+                    format_prompt = tokenizer.encode(item[args.prompt_key])
                 if len(format_prompt) >= args.prompt_max_length:
                     drop_cnt += 1
                     continue  # drop too long prompts

@@ -41,9 +41,9 @@ from oat.utils.data import (
     load_data_from_disk_or_hf,
     shard_buffer,
 )
-from oat.utils.ops import masked_mean, masked_whiten
+from oat.utils.ops import masked_mean, masked_whiten, masked_sum
 
-"""PPO (https://arxiv.org/abs/1707.06347) with additional KL regularization."""
+"""PPO (https://arxiv.org/abs/1707.06347) with optional KL regularization."""
 
 
 @dataclass
@@ -75,6 +75,10 @@ class PPOArgs(OATArgs):
     vanilla_adv: bool = field(
         default=False,
         metadata={"help": "Compute vanilla adv using MC baseline."},
+    )
+    sum_loss: bool = field(
+        default=False,
+        metadata={"help": "Sum losses across tokens."},
     )
     reinforce_update: bool = field(
         default=False,
@@ -231,6 +235,7 @@ class PPOLearner(RLLearner):
     def _init(self, args: PPOArgs, actors: List[ActorBase]) -> None:
         super()._init(args, actors)
         self.dataset_builder = TrajectoryDataset
+        self.masked_aggregator = masked_sum if args.sum_loss else masked_mean
 
     def learn(self, learning_round: int):
         torch.cuda.empty_cache()
@@ -518,7 +523,7 @@ class PPOLearner(RLLearner):
                     mb_response_masks,
                 )
                 if args.reinforce_update:
-                    pg_loss = -mb_advantage * new_logps
+                    pg_loss_max = -mb_advantage * new_logps
                 else:
                     logprobs_diff = new_logps - mb_logps
                     ratio = torch.exp(logprobs_diff)
@@ -534,8 +539,7 @@ class PPOLearner(RLLearner):
                         (pg_loss_max == 0).detach().sum().item()
                     )
 
-                    pg_loss = masked_mean(pg_loss_max, mb_response_masks, axis=1)
-                # pg_loss = masked_mean(pg_loss, mb_loss_masks)
+                pg_loss = self.masked_aggregator(pg_loss_max, mb_response_masks, axis=1)
                 pg_loss = (pg_loss * mb_loss_masks).mean()
                 infos["pg_loss"] = pg_loss.detach()
                 loss = pg_loss
@@ -548,7 +552,7 @@ class PPOLearner(RLLearner):
                     kl3 = torch.expm1(log_ratio) - log_ratio  # expm1 is more stable.
                     infos["kl3"] = (kl3 * mb_response_masks).detach().sum(1).mean()
 
-                    reg_loss = masked_mean(kl3, mb_response_masks, axis=1)
+                    reg_loss = self.masked_aggregator(kl3, mb_response_masks, axis=1)
                     reg_loss = args.beta * (reg_loss * mb_loss_masks).mean()
                     infos["reg_loss"] = reg_loss.detach()
                     loss += reg_loss
@@ -573,7 +577,10 @@ class PPOLearner(RLLearner):
                     vf_losses1 = torch.square(value_pred - mb_return)
                     vf_losses2 = torch.square(value_pred_clipped - mb_return)
                     vf_loss_max = torch.max(vf_losses1, vf_losses2)
-                    vf_loss = 0.5 * masked_mean(vf_loss_max, mb_response_masks, axis=1)
+
+                    vf_loss = 0.5 * self.masked_aggregator(
+                        vf_loss_max, mb_response_masks, axis=1
+                    )
                     critic_loss = args.vf_coef * (vf_loss * mb_loss_masks).mean()
 
                     self.strategy.backward(

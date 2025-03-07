@@ -60,7 +60,14 @@ class ActorBase(abc.ABC):
         assert self.__vllm_version__ >= "0.7.2", "Upgrade to vLLM >= 0.7.2"
 
         vllm_args.update({"seed": time.time_ns() % 2**32, "worker_cls": WorkerWrap})
-        self.llm = vllm.LLM(**vllm_args)
+        for _ in range(5):
+            try:
+                self.llm = vllm.LLM(**vllm_args)
+            except Exception as e:
+                # In case of timeout.
+                time.sleep(5)
+                logging.warning(f"{e}")
+                logging.warning("Re-trying...")
         self.tokenizer = self.llm.get_tokenizer()
         self.model = self.llm.llm_engine.model_executor.driver_worker.model_runner.model
 
