@@ -279,7 +279,7 @@ class PPOLearner(RLLearner):
         return train_info
 
     def compute_ppo_advantages(
-        self, rewards, input_ids, att_mask, response_masks, batch_inds
+        self, rewards, input_ids, att_mask, response_masks
     ):
         all_values = []
 
@@ -287,6 +287,7 @@ class PPOLearner(RLLearner):
             for i in range(
                 0, len(input_ids), self.args.mini_train_batch_size_per_device
             ):
+                batch_inds = torch.arange(i, i + self.args.mini_train_batch_size_per_device)
                 ## Forward critic network.
                 batch_values = self.critic(
                     input_ids=input_ids[batch_inds], attention_mask=att_mask[batch_inds]
@@ -396,7 +397,7 @@ class PPOLearner(RLLearner):
 
         if self.args.critic_type == "ppo":
             advantages, returns, values = self.compute_ppo_advantages(
-                rewards, input_ids, att_mask, response_masks, batch_inds
+                rewards, input_ids, att_mask, response_masks
             )
         elif self.args.critic_type == "grpo":
             advantages = self.compute_grpo_advantages(rewards, response_masks)
