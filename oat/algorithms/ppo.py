@@ -14,6 +14,7 @@
 
 """Proximal Policy Optimization."""
 
+import functools
 import gc
 import itertools
 import logging
@@ -235,7 +236,11 @@ class PPOLearner(RLLearner):
     def _init(self, args: PPOArgs, actors: List[ActorBase]) -> None:
         super()._init(args, actors)
         self.dataset_builder = TrajectoryDataset
-        self.masked_aggregator = masked_sum if args.sum_loss else masked_mean
+        self.masked_aggregator = (
+            functools.partial(masked_sum, constant_normalizer=args.generate_max_length)
+            if args.sum_loss
+            else masked_mean
+        )
 
     def learn(self, learning_round: int):
         torch.cuda.empty_cache()
@@ -407,23 +412,41 @@ class PPOLearner(RLLearner):
         # for i in range(len(logps)):
         #     logps[i, torch.where(response_masks[i])[0]] = action_logprobs[i]
         ## 2) (Option 2) Reevaluate log probabilities using learner model.
-        all_logps = []
+        logps = torch.zeros(
+            input_ids.shape[0], input_ids.shape[1] - 1, device=input_ids.device
+        )
         with torch.no_grad():
             for i in range(0, len(input_ids), args.mini_train_batch_size_per_device):
-                batch_inds = torch.arange(i, i + args.mini_train_batch_size_per_device)
+                mini_batch_inds = torch.arange(
+                    i, i + args.mini_train_batch_size_per_device
+                )
+                mb_input_ids = input_ids[mini_batch_inds]
+                mb_att_mask = att_mask[mini_batch_inds]
+                mb_response_masks = response_masks[mini_batch_inds]
 
-                batch_logits = self.model(
-                    input_ids[batch_inds], attention_mask=att_mask[batch_inds]
-                )["logits"].float()
+                # Remove unnecessary padding introduced by the large PPO batch.
+                mb_valid_token_count_per_pos = mb_att_mask.sum(0)
+                mb_last_valid_token_pos = torch.where(
+                    mb_valid_token_count_per_pos == 0
+                )[0]
+                if len(mb_last_valid_token_pos) >= 1:
+                    mb_last_valid_token_pos = mb_last_valid_token_pos[0]
+                else:
+                    mb_last_valid_token_pos = mb_att_mask.shape[1]
+                mb_input_ids = mb_input_ids[:, :mb_last_valid_token_pos]
+                mb_att_mask = mb_att_mask[:, :mb_last_valid_token_pos]
+                mb_response_masks = mb_response_masks[:, : mb_last_valid_token_pos - 1]
+
+                batch_logits = self.model(mb_input_ids, attention_mask=mb_att_mask)[
+                    "logits"
+                ].float()
                 batch_logits /= args.temperature
                 batch_logps = self.get_batch_logps(
                     batch_logits,
-                    input_ids[batch_inds],
-                    response_masks[batch_inds],
+                    mb_input_ids,
+                    mb_response_masks,
                 )
-                all_logps.append(batch_logps)
-            logps = torch.cat(all_logps)
-            del all_logps
+                logps[mini_batch_inds, : mb_last_valid_token_pos - 1] = batch_logps
 
         ## 2) Reference.
         if self.ref_model is not None:
@@ -533,8 +556,12 @@ class PPOLearner(RLLearner):
                     )
                     pg_loss_max = torch.max(pg_losses, pg_losses2)
 
-                    stats["ratio_max"].append(ratio.detach().max().item())
-                    stats["ratio_min"].append(ratio.detach().min().item())
+                    stats["ratio_max"].append(
+                        torch.amax(ratio.detach() * mb_response_masks).item()
+                    )
+                    stats["ratio_min"].append(
+                        torch.amin(ratio.detach() * mb_response_masks).item()
+                    )
                     stats["zero_pg_loss_count"].append(
                         (pg_loss_max == 0).detach().sum().item()
                     )
@@ -558,6 +585,9 @@ class PPOLearner(RLLearner):
                     loss += reg_loss
 
                 self.strategy.backward(loss, self.model, self.optimizer)
+                stats["policy_grad_norm"].append(
+                    self.strategy.get_gradient_norm(self.model)
+                )
                 self.strategy.optimizer_step(self.optimizer, self.model, self.scheduler)
 
                 if self.args.critic_type == "ppo":
@@ -607,9 +637,10 @@ class PPOLearner(RLLearner):
         infos.update(
             {f"{k}_inf": torch.tensor(stats[k]).isinf().sum() for k in stats.keys()}
         )
+        infos["policy_grad_norm"] = torch.tensor(stats["policy_grad_norm"]).max()
         if not args.reinforce_update:
             infos["ratio_max"] = torch.tensor(stats["ratio_max"]).max()
-            infos["ratio_max"] = torch.tensor(stats["ratio_max"]).max()
+            infos["ratio_min"] = torch.tensor(stats["ratio_min"]).min()
             infos["zero_pg_loss_count"] = (
                 torch.tensor(stats["zero_pg_loss_count"]).float().mean()
             )

@@ -176,6 +176,27 @@ def _z3_params_to_fetch(param_list):
     ]
 
 
+def calculate_global_grad_norm(model_engine):
+    """
+    Calculate gradient norm accurately in distributed setting by:
+    1. Computing local squared norm
+    2. All-reducing squared norms across processes
+    3. Taking the square root of the sum
+    """
+    # Compute local squared norm
+    local_norm_sq = 0.0
+    for p in model_engine.module.parameters():
+        if p.grad is not None:
+            local_norm_sq += p.grad.norm(2).item() ** 2
+
+    # All-reduce the squared norm
+    global_norm_sq = torch.tensor([local_norm_sq], device=torch.cuda.current_device())
+    torch.distributed.all_reduce(global_norm_sq, op=torch.distributed.ReduceOp.SUM)
+
+    # Return the square root of the global squared norm
+    return global_norm_sq.sqrt().item()
+
+
 class DeepspeedStrategy(ABC):
     """
     The strategy for training with Accelerator.
@@ -257,6 +278,15 @@ class DeepspeedStrategy(ABC):
         if isinstance(model, LLM):
             model = model.model
         model.step()
+
+    def get_gradient_norm(
+        self,
+        model: nn.Module,
+        **_,
+    ) -> None:
+        if isinstance(model, LLM):
+            model = model.model
+        return calculate_global_grad_norm(model)
 
     def setup_dataloader(
         self,

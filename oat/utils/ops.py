@@ -24,13 +24,16 @@ def disable_dropout(model: torch.nn.Module) -> None:
 
 
 def masked_sum(
-    values: torch.Tensor, mask: torch.Tensor, axis: Optional[bool] = None
+    values: torch.Tensor,
+    mask: torch.Tensor,
+    axis: Optional[bool] = None,
+    constant_normalizer: float = 1.0,
 ) -> torch.Tensor:
-    """Compute sum of tensor with a masked values."""
+    """Compute sum of tensor with a masked values. Use a constant to normalize."""
     if axis is not None:
-        return (values * mask).sum(axis=axis)
+        return (values * mask).sum(axis=axis) / constant_normalizer
     else:
-        return (values * mask).sum()
+        return (values * mask).sum() / constant_normalizer
 
 
 def masked_mean(
