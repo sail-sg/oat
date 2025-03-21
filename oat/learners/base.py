@@ -461,7 +461,9 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
         # save
         if (self.args.save_steps > 0 and save) or (
-            self.steps > 0 and self._should_do(self.args.save_steps)
+            self.steps > 0
+            and self._should_do(self.args.save_steps)
+            and self.steps >= self.args.save_from
         ):
             self.strategy.save_model(
                 self.model,

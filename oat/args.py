@@ -90,7 +90,7 @@ class OATArgs:
     bt_sample: bool = False
 
     # Critic.
-    critic_type: Literal["ppo", "grpo"] = "ppo"
+    critic_type: Literal["ppo", "grpo", "drgrpo"] = "drgrpo"
 
     # Epistemic reward model (for exploration).
     num_ensemble: int = 20
@@ -170,6 +170,7 @@ class OATArgs:
     """Training specs."""
     save_path: str = "./oat-output"
     save_steps: int = -1
+    save_from: int = 0
     max_save_num: int = 5
     max_save_mem: int = 1000
     logging_steps: int = 1

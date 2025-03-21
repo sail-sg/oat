@@ -50,7 +50,7 @@ from oat.utils.ops import masked_mean, masked_sum, masked_whiten
 @dataclass
 class PPOArgs(OATArgs):
     num_ppo_epochs: int = field(
-        default=2,
+        default=1,
         metadata={"help": "Number of epochs to train."},
     )
     mini_train_batch_size_per_device: int = field(
@@ -72,14 +72,6 @@ class PPOArgs(OATArgs):
     non_stop_fixed_reward: Optional[float] = field(
         default=None,
         metadata={"help": "Fixed reward for responses not containing eos."},
-    )
-    vanilla_adv: bool = field(
-        default=False,
-        metadata={"help": "Compute vanilla adv using MC baseline."},
-    )
-    sum_loss: bool = field(
-        default=False,
-        metadata={"help": "Sum losses across tokens."},
     )
     reinforce_update: bool = field(
         default=False,
@@ -237,8 +229,8 @@ class PPOLearner(RLLearner):
         super()._init(args, actors)
         self.dataset_builder = TrajectoryDataset
         self.masked_aggregator = (
-            functools.partial(masked_sum, constant_normalizer=args.generate_max_length)
-            if args.sum_loss
+            functools.partial(masked_sum, constant_normalizer=1)
+            if args.critic_type == "drgrpo"
             else masked_mean
         )
 
@@ -258,7 +250,7 @@ class PPOLearner(RLLearner):
         dataloader = DataLoader(
             dataset,
             batch_size=len(dataset),
-            shuffle=True,
+            shuffle=False,  # Do not shuffle because we might compute per-prompt baseline value.
             drop_last=True,
             pin_memory=True,
             collate_fn=dataset.collate_fn,
@@ -361,15 +353,14 @@ class PPOLearner(RLLearner):
 
         return advantages, returns, values
 
-    def compute_grpo_advantages(self, rewards, response_masks):
+    def compute_monte_carlo_advantages(self, rewards):
         rewards = rewards.sum(-1)
-        # Compute grouped-wise rewards
-        mean_grouped_rewards = rewards.view(-1, self.args.num_samples).mean(dim=1)
-        mean_grouped_rewards = mean_grouped_rewards.repeat_interleave(
-            self.args.num_samples, dim=0
-        )
-        advantages = rewards - mean_grouped_rewards
-        if not self.args.vanilla_adv:
+        # Compute monte carlo trajectory-level advantage
+        values = rewards.view(-1, self.args.num_samples).mean(dim=1)
+        values = values.repeat_interleave(self.args.num_samples, dim=0)
+        advantages = rewards - values
+        if self.args.critic_type == "grpo":
+            # Additionally normalize by std.
             std_grouped_rewards = rewards.view(-1, self.args.num_samples).std(dim=1)
             std_grouped_rewards = std_grouped_rewards.repeat_interleave(
                 self.args.num_samples, dim=0
@@ -486,8 +477,8 @@ class PPOLearner(RLLearner):
             advantages, returns, values = self.compute_ppo_advantages(
                 rewards, input_ids, att_mask, response_masks
             )
-        elif self.args.critic_type == "grpo":
-            advantages = self.compute_grpo_advantages(rewards, response_masks)[:, None]
+        elif self.args.critic_type in ["grpo", "drgrpo"]:
+            advantages = self.compute_monte_carlo_advantages(rewards)[:, None]
 
         # Compute losses and update models for multiple PPO epochs.
         stats = defaultdict(list)
@@ -556,11 +547,11 @@ class PPOLearner(RLLearner):
                     )
                     pg_loss_max = torch.max(pg_losses, pg_losses2)
 
-                    stats["ratio_max"].append(
-                        torch.amax(ratio.detach() * mb_response_masks).item()
+                    stats["logprobs_diff_max"].append(
+                        torch.amax(logprobs_diff.detach() * mb_response_masks).item()
                     )
-                    stats["ratio_min"].append(
-                        torch.amin(ratio.detach() * mb_response_masks).item()
+                    stats["logprobs_diff_min"].append(
+                        torch.amin(logprobs_diff.detach() * mb_response_masks).item()
                     )
                     stats["zero_pg_loss_count"].append(
                         (pg_loss_max == 0).detach().sum().item()
@@ -639,8 +630,8 @@ class PPOLearner(RLLearner):
         )
         infos["policy_grad_norm"] = torch.tensor(stats["policy_grad_norm"]).max()
         if not args.reinforce_update:
-            infos["ratio_max"] = torch.tensor(stats["ratio_max"]).max()
-            infos["ratio_min"] = torch.tensor(stats["ratio_min"]).min()
+            infos["logprobs_diff_max"] = torch.tensor(stats["logprobs_diff_max"]).max()
+            infos["logprobs_diff_min"] = torch.tensor(stats["logprobs_diff_min"]).min()
             infos["zero_pg_loss_count"] = (
                 torch.tensor(stats["zero_pg_loss_count"]).float().mean()
             )
