@@ -12,9 +12,10 @@
 ---
 
 ## Updates
+* 21/03/2025: We incorporate [Dr. GRPO](https://github.com/sail-sg/understand-r1-zero), which fixes the optimization bias in GRPO.
 * 26/01/2025: We support reinforcement learning with verifiable rewards (RLVR) for math reasoning.
   * A quick [example](https://github.com/sail-sg/oat/blob/main/docs/reasoning_examples.md#deepseek-r1-zero-like-training) of R1-Zero-like training with GRPO.
-
+* 20/10/2024: We open source Oat, an online LLM alignment framework developed during a research project on online LLM exploration ([sample-efficient alignment](https://arxiv.org/pdf/2411.01493)).
 ## Introduction
 
 Oat 🌾 is a simple yet efficient framework for running **online** LLM alignment algorithms. Its key features include:
@@ -31,12 +32,12 @@ Oat 🌾 is a simple yet efficient framework for running **online** LLM alignmen
   * LLM-as-a-judge is supported via querying OpenAI API for model-based pairwise ranking.
 * **Ease of Use**: Oat's modular structure allows researchers to easily inherit and modify existing classes, enabling rapid prototyping and experimentation with new algorithms.
 * **Cutting-Edge Algorithms**: Oat implements state-of-the-art online algorithms, fostering innovation and fair benchmarking.
-  * PPO (online RL) for math reasoning.
+  * PPO/Dr.GRPO (online RL) for math reasoning.
   * Online DPO/SimPO/IPO for online preference learning.
   * Online exploration (active alignment) algorithms, including [SEA](https://arxiv.org/abs/2411.01493), APL and XPO.
 
 ## Installation
-In a python environment with supported versions (`>=3.8, <=3.10`), you could install oat via PyPI:
+In a python environment with supported versions (we recommend `3.10`), you could install oat via PyPI:
 ```shell
 pip install vllm==0.7.2 && pip install oat-llm
 ```
@@ -65,16 +66,20 @@ The benchmarking compares oat with the online DPO implementation from [huggingfa
 Please refer to [Appendix C of our paper](https://arxiv.org/pdf/2411.01493#page=17.64) for a detailed discussion of the benchmarking methods and results.
 
 ## Citation
-If you find this codebase useful for your research, please consider citing
+If you find this codebase useful for your research, please consider citing:
+
+LLM online alignment framework:
 ```
-@misc{liu2025oat,
-author       = {Zichen Liu and Changyu Chen and Chao Du and Wee Sun Lee and Min Lin},
-title        = {OAT: A research-friendly framework for LLM online alignment},
-howpublished = {[https://github.com/sail-sg/oat](https://github.com/sail-sg/oat)},
-year         = {2025}
+@misc{
+  liu2025oat,
+  title={OAT: A research-friendly framework for LLM online alignment},
+  author={Zichen Liu and Changyu Chen and Chao Du and Wee Sun Lee and Min Lin},
+  howpublished={\url{https://github.com/sail-sg/oat}},
+  year={2025}
 }
 ```
 
+Online exploration method:
 ```
 @article{
   liu2024sea,

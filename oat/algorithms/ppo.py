@@ -21,7 +21,7 @@ import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 import torch
@@ -229,7 +229,7 @@ class PPOLearner(RLLearner):
         super()._init(args, actors)
         self.dataset_builder = TrajectoryDataset
         self.masked_aggregator = (
-            functools.partial(masked_sum, constant_normalizer=1)
+            functools.partial(masked_sum, constant_normalizer=args.generate_max_length)
             if args.critic_type == "drgrpo"
             else masked_mean
         )
@@ -311,16 +311,16 @@ class PPOLearner(RLLearner):
 
         return train_info
 
-    def compute_ppo_advantages(
-        self, rewards, input_ids, att_mask, response_masks
-    ):
+    def compute_ppo_advantages(self, rewards, input_ids, att_mask, response_masks):
         all_values = []
 
         with torch.no_grad():
             for i in range(
                 0, len(input_ids), self.args.mini_train_batch_size_per_device
             ):
-                batch_inds = torch.arange(i, i + self.args.mini_train_batch_size_per_device)
+                batch_inds = torch.arange(
+                    i, i + self.args.mini_train_batch_size_per_device
+                )
                 ## Forward critic network.
                 batch_values = self.critic(
                     input_ids=input_ids[batch_inds], attention_mask=att_mask[batch_inds]
