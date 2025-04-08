@@ -53,10 +53,6 @@ class PPOArgs(OATArgs):
         default=1,
         metadata={"help": "Number of epochs to train."},
     )
-    mini_train_batch_size_per_device: int = field(
-        default=1,
-        metadata={"help": "Mini batch size."},
-    )
     whiten_rewards: bool = field(
         default=False,
         metadata={"help": "Whether to whiten the rewards."},
@@ -80,6 +76,10 @@ class PPOArgs(OATArgs):
     ignore_no_eos: bool = field(
         default=False,
         metadata={"help": "Ignore responses that cannot finish within budget."},
+    )
+    whiten_adv: bool = field(
+        default=False,
+        metadata={"help": "Whether to whiten the advantages."},
     )
     reward_scale: float = field(
         default=1.0,
@@ -227,6 +227,7 @@ class PPOActor(RewardActor):
 class PPOLearner(RLLearner):
     def _init(self, args: PPOArgs, actors: List[ActorBase]) -> None:
         super()._init(args, actors)
+        self.args = args
         self.dataset_builder = TrajectoryDataset
         self.masked_aggregator = (
             functools.partial(masked_sum, constant_normalizer=args.generate_max_length)
@@ -250,7 +251,9 @@ class PPOLearner(RLLearner):
         dataloader = DataLoader(
             dataset,
             batch_size=len(dataset),
-            shuffle=False,  # Do not shuffle because we might compute per-prompt baseline value.
+            shuffle=(
+                True if self.args.critic_type == "ppo" else False
+            ),  # Do not shuffle for group MC methods (GRPO / Dr. GRPO).
             drop_last=True,
             pin_memory=True,
             collate_fn=dataset.collate_fn,
@@ -279,14 +282,13 @@ class PPOLearner(RLLearner):
                 len(dataset)
                 * self.args.num_ppo_epochs
                 / self.args.train_batch_size_per_device
-                / self.strategy.accumulated_gradient
+                / self.strategy.grad_acc_step
             )
             learn_batch_time.append(time.time() - st)
             step_bar.update()
 
             self.global_step += 1
-            if self.global_step % self.strategy.accumulated_gradient == 0:
-
+            if self.global_step % self.strategy.grad_acc_step == 0:
                 self.gradient_update_elapse = time.time() - self.gradient_update_st
                 st = time.time()
                 self.gradient_update_st = time.time()
@@ -315,12 +317,8 @@ class PPOLearner(RLLearner):
         all_values = []
 
         with torch.no_grad():
-            for i in range(
-                0, len(input_ids), self.args.mini_train_batch_size_per_device
-            ):
-                batch_inds = torch.arange(
-                    i, i + self.args.mini_train_batch_size_per_device
-                )
+            for i in range(0, len(input_ids), self.args.train_batch_size_per_device):
+                batch_inds = torch.arange(i, i + self.args.train_batch_size_per_device)
                 ## Forward critic network.
                 batch_values = self.critic(
                     input_ids=input_ids[batch_inds], attention_mask=att_mask[batch_inds]
@@ -349,8 +347,8 @@ class PPOLearner(RLLearner):
                 advantages[i, t] = lastgaelam
 
         returns = advantages + values
-        advantages = masked_whiten(advantages, response_masks)
-
+        if self.args.whiten_adv:
+            advantages = masked_whiten(advantages, response_masks)
         return advantages, returns, values
 
     def compute_monte_carlo_advantages(self, rewards):
@@ -407,10 +405,8 @@ class PPOLearner(RLLearner):
             input_ids.shape[0], input_ids.shape[1] - 1, device=input_ids.device
         )
         with torch.no_grad():
-            for i in range(0, len(input_ids), args.mini_train_batch_size_per_device):
-                mini_batch_inds = torch.arange(
-                    i, i + args.mini_train_batch_size_per_device
-                )
+            for i in range(0, len(input_ids), args.train_batch_size_per_device):
+                mini_batch_inds = torch.arange(i, i + args.train_batch_size_per_device)
                 mb_input_ids = input_ids[mini_batch_inds]
                 mb_att_mask = att_mask[mini_batch_inds]
                 mb_response_masks = response_masks[mini_batch_inds]
@@ -443,12 +439,8 @@ class PPOLearner(RLLearner):
         if self.ref_model is not None:
             all_ref_logps = []
             with torch.no_grad():
-                for i in range(
-                    0, len(input_ids), args.mini_train_batch_size_per_device
-                ):
-                    batch_inds = torch.arange(
-                        i, i + args.mini_train_batch_size_per_device
-                    )
+                for i in range(0, len(input_ids), args.train_batch_size_per_device):
+                    batch_inds = torch.arange(i, i + args.train_batch_size_per_device)
 
                     batch_ref_logits = self.ref_model(
                         input_ids[batch_inds], attention_mask=att_mask[batch_inds]
@@ -482,11 +474,13 @@ class PPOLearner(RLLearner):
 
         # Compute losses and update models for multiple PPO epochs.
         stats = defaultdict(list)
+        local_grad_step = 0
         for _ in range(args.num_ppo_epochs):
             batch_inds = np.random.permutation(len(input_ids))
-            for b_st in range(0, len(input_ids), args.mini_train_batch_size_per_device):
+            for b_st in range(0, len(input_ids), args.train_batch_size_per_device):
+                local_grad_step += 1
                 mini_batch_inds = batch_inds[
-                    b_st : b_st + args.mini_train_batch_size_per_device
+                    b_st : b_st + args.train_batch_size_per_device
                 ]
                 mb_advantage = advantages[mini_batch_inds]
                 mb_input_ids = input_ids[mini_batch_inds]
@@ -507,7 +501,7 @@ class PPOLearner(RLLearner):
                 # # Further reduce valid token num to speed up IF:
                 # ## 1. We only have PG loss, i.e., args.beta == 0.
                 # ## 2. Advantage is zero in bandit case (e.g., GRPO).
-                # ## 3. mini_train_batch_size_per_device is 1.
+                # ## 3. train_batch_size_per_device is 1.
                 # if (
                 #     args.beta == 0
                 #     and self.args.critic_type == "grpo"
@@ -576,9 +570,14 @@ class PPOLearner(RLLearner):
                     loss += reg_loss
 
                 self.strategy.backward(loss, self.model, self.optimizer)
-                stats["policy_grad_norm"].append(
-                    self.strategy.get_gradient_norm(self.model)
-                )
+
+                if local_grad_step % self.strategy.grad_acc_step == 0:
+                    _st = time.time()
+                    stats["policy_grad_norm"].append(
+                        self.strategy.get_gradient_norm(self.model)
+                    )
+                    stats["get_grad_norm_time"].append(time.time() - _st)
+
                 self.strategy.optimizer_step(self.optimizer, self.model, self.scheduler)
 
                 if self.args.critic_type == "ppo":
@@ -629,6 +628,7 @@ class PPOLearner(RLLearner):
             {f"{k}_inf": torch.tensor(stats[k]).isinf().sum() for k in stats.keys()}
         )
         infos["policy_grad_norm"] = torch.tensor(stats["policy_grad_norm"]).max()
+        infos["get_grad_norm_time"] = torch.tensor(sum(stats["get_grad_norm_time"]))
         if not args.reinforce_update:
             infos["logprobs_diff_max"] = torch.tensor(stats["logprobs_diff_max"]).max()
             infos["logprobs_diff_min"] = torch.tensor(stats["logprobs_diff_min"]).min()
@@ -639,8 +639,12 @@ class PPOLearner(RLLearner):
         infos["adv_mean"] = advantages.mean().cpu()
         infos["adv_min"] = advantages.min().cpu()
         infos["adv_max"] = advantages.max().cpu()
-        infos["all_zero_rewards_count"] = (final_rewards.mean(-1) == 0).sum().cpu()
-        infos["all_one_rewards_count"] = (final_rewards.mean(-1) == 1).sum().cpu()
+        infos["all_zero_rewards_count"] = (
+            (final_rewards.view(-1, self.args.num_samples).mean(-1) == 0).sum().cpu()
+        )
+        infos["all_one_rewards_count"] = (
+            (final_rewards.view(-1, self.args.num_samples).mean(-1) == 1).sum().cpu()
+        )
 
         return infos
 

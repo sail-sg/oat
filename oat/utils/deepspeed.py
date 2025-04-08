@@ -32,6 +32,7 @@ import torch.nn as nn
 import torch.optim as optim
 from deepspeed.ops.adam import DeepSpeedCPUAdam, FusedAdam
 from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
+from deepspeed.utils import safe_get_full_grad
 from peft import PeftModel, get_peft_model_state_dict
 from torch import distributed as dist
 from torch.optim import Optimizer
@@ -176,27 +177,6 @@ def _z3_params_to_fetch(param_list):
     ]
 
 
-def calculate_global_grad_norm(model_engine):
-    """
-    Calculate gradient norm accurately in distributed setting by:
-    1. Computing local squared norm
-    2. All-reducing squared norms across processes
-    3. Taking the square root of the sum
-    """
-    # Compute local squared norm
-    local_norm_sq = 0.0
-    for p in model_engine.module.parameters():
-        if p.grad is not None:
-            local_norm_sq += p.grad.norm(2).item() ** 2
-
-    # All-reduce the squared norm
-    global_norm_sq = torch.tensor([local_norm_sq], device=torch.cuda.current_device())
-    torch.distributed.all_reduce(global_norm_sq, op=torch.distributed.ReduceOp.SUM)
-
-    # Return the square root of the global squared norm
-    return global_norm_sq.sqrt().item()
-
-
 class DeepspeedStrategy(ABC):
     """
     The strategy for training with Accelerator.
@@ -247,7 +227,7 @@ class DeepspeedStrategy(ABC):
         # Initializes the distributed backend which will take care of synchronizing nodes/GPUs
         deepspeed.init_distributed(timeout=timeout)
         self.world_size = dist.get_world_size()
-        self.accumulated_gradient = (
+        self.grad_acc_step = (
             self.train_batch_size // self.train_batch_size_per_device // self.world_size
         )
 
@@ -286,7 +266,13 @@ class DeepspeedStrategy(ABC):
     ) -> None:
         if isinstance(model, LLM):
             model = model.model
-        return calculate_global_grad_norm(model)
+        grad_norm = torch.tensor(0.0)
+        for p in model.module.parameters():
+            grad = safe_get_full_grad(p)
+            if grad is not None:
+                grad_norm += grad.norm(2).cpu() ** 2
+        grad_norm = grad_norm.sqrt()
+        return grad_norm
 
     def setup_dataloader(
         self,
@@ -411,7 +397,7 @@ class DeepspeedStrategy(ABC):
 
     def moving_average(self, model, model_ema, beta=0.992, device="cpu"):
         self.time_steps["ema"] += 1
-        if self.time_steps["ema"] % self.accumulated_gradient == 0:
+        if self.time_steps["ema"] % self.grad_acc_step == 0:
             with torch.no_grad():
                 for param, param_ema in zip(model.parameters(), model_ema.parameters()):
                     if param.requires_grad:
