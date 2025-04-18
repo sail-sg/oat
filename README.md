@@ -39,13 +39,13 @@ Oat 🌾 is a simple yet efficient framework for running **online** LLM alignmen
 ## Installation
 In a python environment with supported versions (we recommend `3.10`), you could install oat via PyPI:
 ```shell
-pip install vllm==0.7.2 && pip install oat-llm
+pip install vllm==0.8.4 && pip install -U oat-llm
 ```
 Or you could also install in "editable" mode for local development:
 ```shell
 git clone git@github.com:sail-sg/oat.git
 cd oat
-pip install vllm==0.7.2 && pip install -e .
+pip install vllm==0.8.4 && pip install -e .
 ```
 
 ##  Usage
