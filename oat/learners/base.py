@@ -76,6 +76,11 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         args, strategy = get_strategy(args)
         strategy.setup_distributed()
 
+        # Init actors async.
+        actor_init_futs = None
+        if actors and strategy.is_rank_0():
+            actor_init_futs = [actor.futures.init() for actor in actors]
+
         # ---------- Model related ----------
         # init policy model
         self.model = LLM(
@@ -202,6 +207,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.weight_sync_elapse = np.nan
         self.vllm_wake_up_time = 0
         self.vllm_go_sleep_time = 0
+        self.pi_beta_lags_behind = False
 
         # Log summary of the learner
         strategy.print(self.model)
@@ -209,6 +215,9 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         strategy.print(self.scheduler)
         strategy.pprint(vars(args))
         strategy.print(f"Update interval = {self.update_interval}")
+
+        if actor_init_futs is not None:
+            _ = [fut.result() for fut in actor_init_futs]
 
         # prepare parameter syncing to actors (reference to openrlhf)
         #
@@ -265,6 +274,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         )
 
     def run(self):
+        """Entry point of the entire program."""
         self._init(self.args, self.actors)
 
         self.steps = 0
@@ -295,6 +305,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 feedback_data, self.actor_info = self.collector.collect_feedback(
                     raw_prompts, processed_prompts, refs
                 )
+                dist.barrier()
 
                 if feedback_data is None:
                     # Asynchronous prefilling, data is stored in collector's buffer.
@@ -324,8 +335,6 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                     train_info = self.learn(self.steps // self.update_interval)
                     self._post_learning()
 
-                    self.eval_and_log(train_info)
-
                     if (
                         self.steps // self.update_interval
                     ) % self.args.sync_params_every == 0:
@@ -335,6 +344,8 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                         self.steps // self.update_interval
                     ) % self.args.buffer_clear_every == 0:
                         self.pi_buffer.clear()
+
+                    self.eval_and_log(train_info)
 
                 progress_bar.update()
                 self.steps += 1
@@ -508,14 +519,20 @@ class LearnerBase(abc.ABC, DistributedLauncher):
     def evaluate(self, dataloader, steps):
         self.strategy.print(f"Start generating evaluation responses at step {steps}")
         st_time = time.time()
+
+        assert not self.pi_beta_lags_behind, "pi beta lags behind for evaluation"
+
         # 1) Let Actors cache the current behavior policy.
         if self.strategy.is_rank_0():
-            done = [actor.futures.notify_eval_start() for actor in self.actors]
+            done = [
+                actor.futures.notify_eval_start(self.pi_beta_lags_behind)
+                for actor in self.actors
+            ]
             _ = [d.result() for d in done]
 
-        # 2) Push the latest policy for fast vLLM generation.
-        dist.barrier()
-        self._broadcast_to_vllm()
+        # 2) Sync the latest policy to vLLM engines.
+        if self.pi_beta_lags_behind:
+            self._broadcast_to_vllm()
 
         # 3) Generate and process results
         win_rate = 0
@@ -589,7 +606,10 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
         # 4) Recover Actors' original behavior policy.
         if self.strategy.is_rank_0():
-            done = [actor.futures.notify_eval_done() for actor in self.actors]
+            done = [
+                actor.futures.notify_eval_done(self.pi_beta_lags_behind)
+                for actor in self.actors
+            ]
             _ = [d.result() for d in done]
 
         dist.barrier()
@@ -606,6 +626,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         st = time.time()
         self._broadcast_to_vllm()
         self.pi_beta_version += 1
+        self.pi_beta_lags_behind = False
         self.weight_sync_elapse = time.time() - st
 
     def _broadcast_to_vllm(self):
@@ -662,14 +683,17 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         logging.info(f"weights @version={self.pi_beta_version} broadcasted to actors")
 
     def _post_learning(self):
+        torch.cuda.empty_cache()
+        self.pi_beta_lags_behind = True
         if self.args.vllm_sleep:
             # Wake up vLLM after training.
             st = time.time()
-            dist.barrier()
             torch.cuda.synchronize()
+            dist.barrier()
             if self.strategy.is_rank_0():
                 futs = [actor.futures.wake_up() for actor in self.actors]
                 _ = [fut.result() for fut in futs]
+            torch.cuda.synchronize()
             dist.barrier()
             self.vllm_wake_up_time = time.time() - st
 
@@ -677,9 +701,11 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         if self.args.vllm_sleep:
             # Let vLLM sleep before training.
             st = time.time()
+            torch.cuda.synchronize()
             dist.barrier()
             if self.strategy.is_rank_0():
                 futs = [actor.futures.sleep() for actor in self.actors]
                 _ = [fut.result() for fut in futs]
+            torch.cuda.synchronize()
             dist.barrier()
             self.vllm_go_sleep_time = time.time() - st

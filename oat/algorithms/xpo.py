@@ -15,6 +15,7 @@
 """XPO: https://arxiv.org/pdf/2405.21046."""
 
 from dataclasses import dataclass
+from typing import List
 
 import torch
 import vllm
@@ -36,20 +37,21 @@ class XPOArgs(OATArgs):
 class XPOActor(PreferenceActor):
     """Sample one response from llm and another from ref_llm."""
 
-    def __init__(self, ipc_server, vllm_args, args: XPOArgs) -> None:
-        super().__init__(ipc_server, vllm_args, args)
+    def init(self):
+        super().init()
+        args = self.args
         self.sampling_params.n = 1  # one for each llm
         self.offload_ref_model = args.xpo_offload_actor_ref
 
         if not self.offload_ref_model:
-            self.ref_llm = vllm.LLM(**vllm_args)
+            self.ref_llm = vllm.LLM(**self.vllm_args)
         else:
             self.ref_llm = None
             self.cache_ref_model_state = {
                 k: v.cpu() for k, v in self.model.named_parameters()
             }
 
-    def generate(self, prompts: base.List[str], sampling_params: vllm.SamplingParams):
+    def generate(self, prompts: List[str], sampling_params: vllm.SamplingParams):
         if self.eval_mode:
             return super().generate(prompts, sampling_params)
 

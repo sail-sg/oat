@@ -45,10 +45,14 @@ def get_tokenizer(pretrain, model=None, padding_side="left", use_fast=True):
     return tokenizer
 
 
-def load_data_from_disk_or_hf(data_name):
+def load_data_from_disk_or_hf(data_name: str):
     if os.path.exists(data_name):
         return datasets.load_from_disk(data_name)
-    return datasets.load_dataset(data_name)
+    if "@" in data_name:
+        name, path = data_name.split("@")
+    else:
+        name, path = None, data_name
+    return datasets.load_dataset(path, name, trust_remote_code=True)
 
 
 def get_datasets(tokenizer, strategy, eval_only=False):
@@ -60,14 +64,7 @@ def get_datasets(tokenizer, strategy, eval_only=False):
         )
     if args.eval_data:
         strategy.print(f"loading eval data {args.eval_data}")
-        if os.path.exists(args.eval_data):
-            eval_dataset = datasets.load_from_disk(args.eval_data)
-        else:
-            if "@" in args.eval_data:
-                name, path = args.eval_data.split("@")
-            else:
-                name, path = None, args.eval_data
-            eval_dataset = datasets.load_dataset(path, name, trust_remote_code=True)
+        eval_dataset = load_data_from_disk_or_hf(args.eval_data)
     else:
         # Share the same dataset but use different split.
         eval_dataset = prompt_dataset

@@ -59,14 +59,12 @@ class RLLearner(LearnerBase):
                 self.strategy.prepare(
                     (self.model, self.optimizer, self.scheduler),
                     self.ref_model,
-                    is_rlhf=True,
                 )
             )
         else:
             self.strategy.print("Running reference-free algorithm...")
             (self.model, self.optimizer, self.scheduler) = self.strategy.prepare(
                 (self.model, self.optimizer, self.scheduler),
-                is_rlhf=True,
             )
             self.ref_model = None
 
@@ -113,7 +111,6 @@ class RLLearner(LearnerBase):
             (self.critic, self.critic_optimizer, self.critic_scheduler) = (
                 self.strategy.prepare(
                     (self.critic, self.critic_optimizer, self.critic_scheduler),
-                    is_rlhf=True,
                 )
             )
         else:

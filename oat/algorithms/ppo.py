@@ -27,7 +27,6 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import tree
-import vllm
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -108,25 +107,6 @@ class PPOArgs(OATArgs):
 
 
 class PPOActor(RewardActor):
-    def __init__(self, ipc_server, vllm_args, args: PPOArgs) -> None:
-        super().__init__(ipc_server, vllm_args, args)
-        self.sampling_params = vllm.SamplingParams(
-            temperature=args.temperature,
-            top_p=args.top_p,
-            top_k=args.top_k,
-            max_tokens=args.generate_max_length,
-            stop=["\n\nQuestion", "\n\nProblem"],
-            n=args.num_samples,
-            logprobs=2,
-        )
-        self.eval_sampling_params = vllm.SamplingParams(
-            n=args.eval_n,
-            temperature=args.eval_temperature,
-            top_p=args.eval_top_p,
-            top_k=args.eval_top_k,
-            max_tokens=args.eval_generate_max_length,
-            stop=["\n\nQuestion", "\n\nProblem"],
-        )
 
     def step(
         self,
@@ -236,6 +216,7 @@ class PPOLearner(RLLearner):
         )
 
     def learn(self, learning_round: int):
+        torch.cuda.synchronize()
         torch.cuda.empty_cache()
         dist.barrier()
         dataset = self.dataset_builder(
@@ -351,7 +332,8 @@ class PPOLearner(RLLearner):
             advantages = masked_whiten(advantages, response_masks)
         return advantages, returns, values
 
-    def compute_monte_carlo_advantages(self, rewards):
+    def compute_monte_carlo_advantages(self, rewards, response_masks):
+        del response_masks
         rewards = rewards.sum(-1)
         # Compute monte carlo trajectory-level advantage
         values = rewards.view(-1, self.args.num_samples).mean(dim=1)
@@ -470,7 +452,9 @@ class PPOLearner(RLLearner):
                 rewards, input_ids, att_mask, response_masks
             )
         elif self.args.critic_type in ["grpo", "drgrpo"]:
-            advantages = self.compute_monte_carlo_advantages(rewards)[:, None]
+            advantages = self.compute_monte_carlo_advantages(rewards, response_masks)[
+                :, None
+            ]
 
         # Compute losses and update models for multiple PPO epochs.
         stats = defaultdict(list)

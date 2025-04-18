@@ -62,13 +62,11 @@ class DAPLearner(LearnerBase):
                 self.strategy.prepare(
                     (self.model, self.optimizer, self.scheduler),
                     self.ref_model,
-                    is_rlhf=True,
                 )
             )
         else:
             (self.model, self.optimizer, self.scheduler) = self.strategy.prepare(
                 (self.model, self.optimizer, self.scheduler),
-                is_rlhf=True,
             )
             self.ref_model = None
 

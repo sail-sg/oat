@@ -54,8 +54,8 @@ class APLArgs(OATArgs):
 class APLActor(PreferenceActor):
     """Sample a large batch and filter with entropy and reward margin."""
 
-    def __init__(self, ipc_server, vllm_args, args: APLArgs) -> None:
-        super().__init__(ipc_server, vllm_args, args)
+    def init(self):
+        super().init()
         self.sampling_params.logprobs = 1
 
     def generate_and_entropy_filter(self, prompts: List[str]) -> DataID:

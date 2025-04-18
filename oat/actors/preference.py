@@ -21,7 +21,6 @@ import torch
 import vllm
 
 from oat.actors.base import ActorBase
-from oat.args import OATArgs
 from oat.exploration import ExplorationResults, Explorer, ModelBasedExplorer
 from oat.rm import backbone, model
 from oat.types import PreferenceData
@@ -32,8 +31,9 @@ class PreferenceActor(ActorBase):
     as preference-based reinforcement learning (PbRL) or contextual dueling bandit (CDB).
     """
 
-    def __init__(self, ipc_server, vllm_args, args: OATArgs) -> None:
-        super().__init__(ipc_server, vllm_args, args)
+    def init(self):
+        super().init()
+        args = self.args
         assert (
             self.sampling_params.n >= 2
         ), "need to sample at least 2 responses per prompt"

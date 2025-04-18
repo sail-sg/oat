@@ -30,7 +30,6 @@ from torch.distributed.distributed_c10d import (
     default_pg_timeout,
     rendezvous,
 )
-from vllm.worker.worker import Worker
 
 # !!! IMPORTANT NOTE !!!(liuzc)
 # torch.dtype cannot be passed through lp's rpc due to segmentation fault; use string instead.
@@ -95,6 +94,12 @@ def init_process_group(
         # different systems (e.g. RPC) in case the store is multi-tenant.
         store = PrefixStore(group_name, store)
 
+    # NOTE: The pg_options parameter was renamed into backend_options in PyTorch 2.6.0
+    # https://github.com/pytorch/pytorch/commit/a0c7029a75628cd5fa8df83c0de0ea98ee7fd844
+    # We need to determine the appropriate parameter name based on PyTorch version
+    pg_options_param_name = (
+        "backend_options" if str(torch.__version__) >= "2.6" else "pg_options"
+    )
     pg, _ = _new_process_group_helper(
         world_size,
         rank,
@@ -102,7 +107,7 @@ def init_process_group(
         backend,
         store,
         group_name=group_name,
-        pg_options=pg_options,
+        **{pg_options_param_name: pg_options},
         timeout=timeout,
     )
 
@@ -115,7 +120,7 @@ def init_process_group(
     return pg
 
 
-class WorkerWrap(Worker):
+class WorkerWrap:
     def init_process_group(
         self,
         master_address,
@@ -166,6 +171,24 @@ class WorkerWrap(Worker):
         del weight
         if empty_cache:
             torch.cuda.empty_cache()
+
+    def offload_cpu(self):
+        assert self.model_config.enforce_eager, "Must use eager mode to offload!"
+        for param in self.model_runner.model.parameters():
+            param.meta_tensor = param.data.to("meta")
+            param.data = torch.Tensor([])
+
+        self.cache_engine = None
+        self.gpu_cache = None
+        torch.cuda.empty_cache()
+
+    def load_gpu(self):
+        assert self.model_config.enforce_eager, "Must use eager mode to offload!"
+        for param in self.model_runner.model.parameters():
+            param.data = torch.empty_like(param.meta_tensor, device="cuda")
+            param.meta_tensor = None
+        if self.cache_engine is None and self.gpu_cache is None:
+            super()._init_cache_engine()
 
 
 def node_ip_address_from_perspective(address: str = "8.8.8.8:53"):

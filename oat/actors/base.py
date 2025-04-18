@@ -18,14 +18,13 @@ import time
 from typing import List, Union
 
 import torch
-import tree
 import vllm
 
 from oat import oracles
 from oat.args import OATArgs
 from oat.rm import model
 from oat.types import PreferenceData, TrajectoryData
-from oat.utils.distributed import WorkerWrap, torch_type_codec
+from oat.utils.distributed import torch_type_codec
 from oat.utils.ipc import PlasmaShmClient
 
 logging.getLogger("vllm").setLevel(logging.ERROR)
@@ -38,11 +37,15 @@ class ActorBase(abc.ABC):
         self.args = args
         self.eval_mode = False
         self.generate_mode = False
+        self.ipc_server = ipc_server
+        self.vllm_args = vllm_args
 
+    def init(self):
+        args = self.args
         # Measuring the **online** performance
         self.enable_online_evaluation = args.online_evaluation
 
-        self.ipc_client = PlasmaShmClient(ipc_server)
+        self.ipc_client = PlasmaShmClient(self.ipc_server)
 
         # ###################################
         # ####      vLLM Generation      ####
@@ -54,16 +57,29 @@ class ActorBase(abc.ABC):
             max_tokens=args.generate_max_length,
             n=args.num_samples,
         )
+        self.eval_sampling_params = vllm.SamplingParams(
+            n=args.eval_n,
+            temperature=args.eval_temperature,
+            top_p=args.eval_top_p,
+            top_k=args.eval_top_k,
+            max_tokens=args.eval_generate_max_length,
+        )
 
         self.__vllm_version__ = vllm.__version__
 
-        assert self.__vllm_version__ >= "0.7.2", "Upgrade to vLLM >= 0.7.2"
+        assert self.__vllm_version__ >= "0.8.3", "Upgrade to vLLM >= 0.8.3"
 
-        vllm_args.update({"seed": time.time_ns() % 2**32, "worker_cls": WorkerWrap})
+        self.vllm_args.update(
+            {
+                "seed": time.time_ns() % 2**32,
+                "worker_extension_cls": "oat.utils.distributed.WorkerWrap",
+            }
+        )
         _wait_time = 5
         for _ in range(10):
+            # Retry in case network error when accessing HF.
             try:
-                self.llm = vllm.LLM(**vllm_args)
+                self.llm = vllm.LLM(**self.vllm_args)
                 break
             except Exception as e:
                 # In case of timeout.
@@ -75,7 +91,10 @@ class ActorBase(abc.ABC):
             raise RuntimeError("vllm cannot load the model")
 
         self.tokenizer = self.llm.get_tokenizer()
-        self.model = self.llm.llm_engine.model_executor.driver_worker.model_runner.model
+        # TODO(liuzc): after vllm upgraded to 0.8.3, we could not access `model_executor`
+        # We disable this temporarily since we focus on on-policy algos - actor policy
+        # is the same as the one we want to evaluate.
+        # self.model = self.llm.llm_engine.model_executor.driver_worker.model_runner.model
 
         # ###################################
         # ####     Feedback Oracles      ####
@@ -187,26 +206,28 @@ class ActorBase(abc.ABC):
         model.default_weight_loader(params_dict[name], weight)
         del weight
 
-    def notify_eval_start(self, eval=True):
+    def notify_eval_start(self, pi_beta_lags_behind=False, eval=True):
         """Temporarily cache the current behavior policy weights to CPU."""
         if eval:
             self.eval_mode = True
         logging.debug("Start offloading...")
         st = time.time()
-        self.cache_model_state = tree.map_structure(
-            lambda x: x.cpu(), self.model.state_dict()
-        )
+        # if self.args.enable_prefix_caching:
+        #     self.reset_prefix_cache()
+        # self.cache_model_state = tree.map_structure(
+        #     lambda x: x.cpu(), self.model.state_dict()
+        # )
         logging.debug(f"Finished offloading in {time.time() - st} seconds")
 
-    def notify_eval_done(self, eval=True):
+    def notify_eval_done(self, pi_beta_lags_behind=False, eval=True):
         """Load cached behavior policy weights to GPU."""
         if eval:
             assert self.eval_mode
         logging.debug("Start loading from cpu...")
         st = time.time()
-        self.model.load_state_dict(self.cache_model_state)
-        if self.args.enable_prefix_caching:
-            self.reset_prefix_cache()
+        # self.model.load_state_dict(self.cache_model_state)
+        # if self.args.enable_prefix_caching:
+        #     self.reset_prefix_cache()
         logging.debug(f"Finished loading in {time.time() - st} seconds")
         if eval:
             self.eval_mode = False

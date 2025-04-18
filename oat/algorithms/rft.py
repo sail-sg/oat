@@ -20,7 +20,6 @@ import pandas as pd
 import tree
 
 from oat.actors import PreferenceActor
-from oat.args import OATArgs
 from oat.learners import SFTLearner
 from oat.types import PreferenceData
 
@@ -31,10 +30,6 @@ class RESTLearner(SFTLearner):
 
 class RESTActor(PreferenceActor):
     """Inherit PreferenceActor but we only make use of `chosen`."""
-
-    def __init__(self, ipc_server, vllm_args, args: OATArgs) -> None:
-        assert args.oracle in ["gsm8k"], f"Oracle {args.oracle} is not supported"
-        super().__init__(ipc_server, vllm_args, args)
 
     def step(
         self,

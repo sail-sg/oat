@@ -18,10 +18,8 @@ import time
 from typing import List
 
 import tree
-import vllm
 
 from oat.actors.base import ActorBase
-from oat.args import OATArgs
 from oat.types import TrajectoryData
 
 
@@ -32,15 +30,10 @@ class RewardActor(ActorBase):
     When the reward is a trained model from human preferences, this is also known as RLHF.
     """
 
-    def __init__(self, ipc_server, vllm_args, args: OATArgs) -> None:
-        super().__init__(ipc_server, vllm_args, args)
-        self.eval_sampling_params = vllm.SamplingParams(
-            n=1,
-            temperature=(args.eval_temperature),
-            top_p=args.eval_top_p,
-            top_k=args.eval_top_k,
-            max_tokens=args.eval_generate_max_length,
-        )
+    def init(self):
+        super().init()
+        # Return the log prob because RL algos need it.
+        self.sampling_params.logprobs = 1
 
     def extract_candidates_from_output(self, outputs, sampling_params, strip=True):
         candidates = []

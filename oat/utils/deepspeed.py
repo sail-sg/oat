@@ -22,7 +22,6 @@ import time
 from abc import ABC
 from collections import defaultdict
 from datetime import timedelta
-from pprint import pprint
 from typing import List, Tuple, Union
 
 import deepspeed
@@ -34,6 +33,7 @@ from deepspeed.ops.adam import DeepSpeedCPUAdam, FusedAdam
 from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
 from deepspeed.utils import safe_get_full_grad
 from peft import PeftModel, get_peft_model_state_dict
+from rich.pretty import pprint
 from torch import distributed as dist
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, DistributedSampler
@@ -206,8 +206,6 @@ class DeepspeedStrategy(ABC):
         self.grad_accum_dtype = getattr(args, "grad_accum_dtype", "fp32")
         # disable_trace_cache
         self.disable_trace_cache = getattr(args, "disable_trace_cache", False)
-
-        self.is_rlhf = False
         self.time_steps = defaultdict(int)
 
     def set_seed(self, seed: int) -> None:
@@ -313,10 +311,9 @@ class DeepspeedStrategy(ABC):
             return model
 
     def prepare(
-        self, *models_or_model_optim_pairs: ModelOrModelOptimPair, is_rlhf=False
+        self, *models_or_model_optim_pairs: ModelOrModelOptimPair
     ) -> Union[List[ModelOrModelOptimPair], ModelOrModelOptimPair]:
         ret = []
-        self.is_rlhf = is_rlhf
         for arg in models_or_model_optim_pairs:
             if isinstance(arg, tuple):
                 assert (
@@ -348,7 +345,6 @@ class DeepspeedStrategy(ABC):
         return model, optim, scheduler
 
     def get_ds_train_config(self, is_wrapped):
-        # DS Config
         ds_config = get_train_ds_config(
             offload=False,
             adam_offload=self.adam_offload,
@@ -362,9 +358,6 @@ class DeepspeedStrategy(ABC):
 
         ds_config["train_micro_batch_size_per_gpu"] = self.train_batch_size_per_device
         train_batch_size = self.train_batch_size
-        # corner case for ptx loss (backward twice)
-        # if self.is_rlhf and is_wrapped and self.args.pretrain_data is not None:
-        #     train_batch_size *= 2
         ds_config["train_batch_size"] = train_batch_size
 
         return ds_config
