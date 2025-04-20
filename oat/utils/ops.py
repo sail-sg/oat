@@ -76,3 +76,10 @@ def masked_whiten(
     if not shift_mean:
         whitened += mean
     return whitened
+
+
+def entropy_from_logits(logits: torch.Tensor):
+    """Calculate entropy from logits."""
+    pd = torch.nn.functional.softmax(logits, dim=-1)
+    entropy = torch.logsumexp(logits, dim=-1) - torch.sum(pd * logits, dim=-1)
+    return entropy

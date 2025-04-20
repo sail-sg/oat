@@ -139,10 +139,10 @@ class OATArgs:
     max_queries: int = -1
 
     # On-policy generation params.
-    generate_max_length: int = 53
-    temperature: float = 0.7
+    generate_max_length: int = 512
+    temperature: float = 1.0
     top_p: float = 1.0
-    top_k: float = -1
+    top_k: int = -1
     num_samples: int = 2
 
     """Evaluation configurations."""
@@ -153,10 +153,10 @@ class OATArgs:
     max_eval: int = 1000
     eval_split: str = "test"
     eval_batch_size: int = -1
-    eval_generate_max_length: int = 200
+    eval_generate_max_length: int = 512
     eval_temperature: float = 0.0
-    eval_top_p: float = 0.95
-    eval_top_k: float = -1
+    eval_top_p: float = 1.0
+    eval_top_k: int = -1
     eval_n: int = 1
     eval_steps: int = 20
     eval_query_interval: int = -1

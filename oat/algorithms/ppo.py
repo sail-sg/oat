@@ -41,7 +41,7 @@ from oat.utils.data import (
     load_data_from_disk_or_hf,
     shard_buffer,
 )
-from oat.utils.ops import masked_mean, masked_sum, masked_whiten
+from oat.utils.ops import entropy_from_logits, masked_mean, masked_sum, masked_whiten
 
 """PPO (https://arxiv.org/abs/1707.06347) with optional KL regularization."""
 
@@ -552,6 +552,10 @@ class PPOLearner(RLLearner):
                     reg_loss = args.beta * (reg_loss * mb_loss_masks).mean()
                     infos["reg_loss"] = reg_loss.detach()
                     loss += reg_loss
+
+                entropy = entropy_from_logits(logits[:, :-1])
+                entropy = masked_mean(entropy, mb_response_masks)
+                infos["entropy"] = entropy.detach()
 
                 self.strategy.backward(loss, self.model, self.optimizer)
 
