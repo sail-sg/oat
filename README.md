@@ -7,14 +7,13 @@
 [![License](https://img.shields.io/github/license/sail-sg/oat)](https://github.com/sail-sg/oat/blob/main/LICENSE)
 [![arXiv](https://img.shields.io/badge/arXiv-2411.01493-b31b1b.svg)](https://arxiv.org/abs/2411.01493)
 
-[Installation](#installation) | [Usage](#usage) | [Examples](./examples/) | [Benchmarking](#benchmarking) | [Citation](#citation)
+[Installation](#installation) | [Usage](#usage) | [Examples](./examples/) | [Citation](#citation)
 
 ---
 
 ## Updates
 * 21/03/2025: We incorporate [Dr. GRPO](https://github.com/sail-sg/understand-r1-zero), which fixes the optimization bias in GRPO.
 * 26/01/2025: We support reinforcement learning with verifiable rewards (RLVR) for math reasoning.
-  * A quick [example](https://github.com/sail-sg/oat/blob/main/docs/reasoning_examples.md#deepseek-r1-zero-like-training) of R1-Zero-like training with GRPO.
 * 20/10/2024: We open source Oat, an online LLM alignment framework developed during a research project on online LLM exploration ([sample-efficient alignment](https://arxiv.org/pdf/2411.01493)).
 ## Introduction
 
@@ -49,10 +48,11 @@ pip install vllm==0.8.4 && pip install -e .
 ```
 
 ##  Usage
-* [Improving math reasoning with PPO](./docs/reasoning_examples.md).
-* [Online preference learning with active exploration](./docs/alignment_as_cdb.md).
+Please refer to [this file](https://github.com/sail-sg/understand-r1-zero/blob/main/train_zero_math.py) for a self-contained example showing how to implement Dr. GRPO for R1-Zero-like training with oat 🌾.
 
-## Benchmarking
+Additionally, we also provide a guide on [online preference learning with active exploration](./docs/alignment_as_cdb.md).
+
+<!-- ## Benchmarking
 The benchmarking compares oat with the online DPO implementation from [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer). Below, we outline the configurations used for oat and present the benchmarking results. Notably, oat 🌾 achieves up to **2.5x** computational efficiency compared to trl 🤗.
 
 <p align="center">
@@ -63,7 +63,7 @@ The benchmarking compares oat with the online DPO implementation from [huggingfa
   <img src="https://gist.githubusercontent.com/lkevinzc/98afee30a5141d7068a0b35a88901a31/raw/e23f40d33e8a2fa4220e8122c152b356084b8afb/bench_results.png" width=65% />
 </p>
 
-Please refer to [Appendix C of our paper](https://arxiv.org/pdf/2411.01493#page=17.64) for a detailed discussion of the benchmarking methods and results.
+Please refer to [Appendix C of our paper](https://arxiv.org/pdf/2411.01493#page=17.64) for a detailed discussion of the benchmarking methods and results. -->
 
 ## Citation
 If you find this codebase useful for your research, please consider citing:
