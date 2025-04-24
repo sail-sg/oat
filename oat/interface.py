@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Defining how components interface with each other."""
+import os 
+
 import logging
 from typing import Type
 
@@ -79,9 +81,11 @@ def get_program(
                 label=label,
             )
         )
-        local_resources[label] = local_multi_processing.PythonProcess(
-            env={"CUDA_VISIBLE_DEVICES": str(i)}
-        )
+
+        env = os.environ.copy()
+        if "CUDA_VISIBLE_DEVICES" not in env:
+            env["CUDA_VISIBLE_DEVICES"] = str(i)
+        local_resources[label] = local_multi_processing.PythonProcess(env=env)
 
     # Learner.
     master_addr = "0.0.0.0"
@@ -101,9 +105,13 @@ def get_program(
         ipc_server,
     )
     program.add_node(master_learner, label=label)
-    local_resources[label] = local_multi_processing.PythonProcess(
-        env={"CUDA_VISIBLE_DEVICES": str(learner_gpus[0])}
-    )
+
+    # check if CUDA_VISIBLE_DEVICES it is already set
+    env = os.environ.copy()
+    if "CUDA_VISIBLE_DEVICES" not in env:
+        env["CUDA_VISIBLE_DEVICES"] = str(learner_gpus[0])
+    local_resources[label] = local_multi_processing.PythonProcess(env=env)
+
     for i in range(1, len(learner_gpus)):
         label = f"learner_{i}"
         worker_learner = lp.PyClassNode(
@@ -119,8 +127,10 @@ def get_program(
             ipc_server,
         )
         program.add_node(worker_learner, label=label)
-        local_resources[label] = local_multi_processing.PythonProcess(
-            env={"CUDA_VISIBLE_DEVICES": str(learner_gpus[i])}
-        )
+
+        env = os.environ.copy()
+        if "CUDA_VISIBLE_DEVICES" not in env:
+            env["CUDA_VISIBLE_DEVICES"] = str(learner_gpus[i])
+        local_resources[label] = local_multi_processing.PythonProcess(env=env)
 
     return program, local_resources
