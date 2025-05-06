@@ -277,6 +277,14 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         """Entry point of the entire program."""
         self._init(self.args, self.actors)
 
+        if self.args.resume_dir:
+            # Resume from previous training.
+            # 1) Model & training states
+            self.strategy.load_ckpt(
+                self.model.model, self.args.resume_dir, self.args.resume_tag
+            )
+            # 2) Dataset ... (TODO)
+
         self.steps = 0
         early_stop = False
         self.start_time = time.time()
@@ -484,6 +492,14 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 max_num=self.args.max_save_num,
                 max_mem=self.args.max_save_mem,
             )
+            if self.args.save_ckpt:
+                self.strategy.save_ckpt(
+                    self.model.model,
+                    os.path.join(self.save_path, "checkpoints"),
+                    tag="step_{:05d}".format(self.steps),
+                    max_num=self.args.max_save_num,
+                    max_mem=self.args.max_save_mem,
+                )
 
         # logs
         if eval_info or self.steps % self.args.logging_steps == 0:

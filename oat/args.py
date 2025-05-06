@@ -171,6 +171,9 @@ class OATArgs:
     save_path: str = "./oat-output"
     save_steps: int = -1
     save_from: int = 0
+    save_ckpt: bool = False
+    resume_dir: str = ""
+    resume_tag: str = None
     max_save_num: int = 5
     max_save_mem: int = 1000
     logging_steps: int = 1
