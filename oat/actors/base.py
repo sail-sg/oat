@@ -40,7 +40,8 @@ class ActorBase(abc.ABC):
         self.ipc_server = ipc_server
         self.vllm_args = vllm_args
 
-    def init(self):
+    def init(self, actor_id):
+        self.actor_id = actor_id
         args = self.args
         # Measuring the **online** performance
         self.enable_online_evaluation = args.online_evaluation
@@ -94,6 +95,7 @@ class ActorBase(abc.ABC):
         # TODO(liuzc): after vllm upgraded to 0.8.3, we could not access `model_executor`
         # We disable this temporarily since we focus on on-policy algos - actor policy
         # is the same as the one we want to evaluate.
+        # https://github.com/vllm-project/vllm/issues/12774
         # self.model = self.llm.llm_engine.model_executor.driver_worker.model_runner.model
 
         # ###################################
@@ -113,14 +115,28 @@ class ActorBase(abc.ABC):
         )
         self.oracle_batch_size = args.oracle_batch_size
 
-    def generate(self, prompts: List[str], sampling_params: vllm.SamplingParams):
+    def generate(
+        self,
+        prompts: List[str],
+        sampling_params: vllm.SamplingParams,
+    ):
         self.generate_mode = True
-        if self.tokenizer.bos_token:
-            # lstrip bos_token because vllm will add it.
-            prompts = [p.lstrip(self.tokenizer.bos_token) for p in prompts]
-        outputs = self.llm.generate(
-            prompts, sampling_params=sampling_params, use_tqdm=False
-        )
+        if isinstance(prompts[0], str):
+            # Inference with text input
+            if self.tokenizer.bos_token:
+                # lstrip bos_token because vllm will add it.
+                prompts = [p.lstrip(self.tokenizer.bos_token) for p in prompts]
+            outputs = self.llm.generate(
+                prompts, sampling_params=sampling_params, use_tqdm=False
+            )
+        else:
+            # Inference with token input
+            outputs = self.llm.generate(
+                prompt_token_ids=prompts,
+                sampling_params=sampling_params,
+                use_tqdm=False,
+            )
+
         if self.tokenizer.bos_token:
             # make sure vllm added bos_token.
             assert self.tokenizer.bos_token_id in outputs[0].prompt_token_ids

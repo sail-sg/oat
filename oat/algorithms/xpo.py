@@ -37,8 +37,8 @@ class XPOArgs(OATArgs):
 class XPOActor(PreferenceActor):
     """Sample one response from llm and another from ref_llm."""
 
-    def init(self):
-        super().init()
+    def init(self, actor_id):
+        super().init(actor_id)
         args = self.args
         self.sampling_params.n = 1  # one for each llm
         self.offload_ref_model = args.xpo_offload_actor_ref

@@ -79,7 +79,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         # Init actors async.
         actor_init_futs = None
         if actors and strategy.is_rank_0():
-            actor_init_futs = [actor.futures.init() for actor in actors]
+            actor_init_futs = [actor.futures.init(i) for i, actor in enumerate(actors)]
 
         # ---------- Model related ----------
         # init policy model
