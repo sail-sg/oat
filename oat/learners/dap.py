@@ -48,7 +48,6 @@ class DAPLearner(LearnerBase):
                 use_flash_attention_2=args.flash_attn,
                 bf16=args.bf16,
                 load_in_4bit=args.load_in_4bit,
-                ds_config=self.strategy.get_ds_eval_config(offload=args.ref_offload),
             )
             disable_dropout(self.ref_model)
         else:

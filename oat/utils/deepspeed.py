@@ -316,11 +316,13 @@ class DeepspeedStrategy(ABC):
         ret = []
         for arg in models_or_model_optim_pairs:
             if isinstance(arg, tuple):
+                # Prepare online model
                 assert (
                     len(arg) == 3
                 ), f'Expect (model, optimizer, scheduler) pair, got a tuple with size "{len(arg)}"'
                 ret.append(self._ds_init_train_model(*arg))
             else:
+                # Prepare reference model
                 ret.append(self._ds_init_eval_model(arg))
 
         return ret[0] if len(ret) == 1 else ret
@@ -364,7 +366,7 @@ class DeepspeedStrategy(ABC):
 
     def _ds_init_eval_model(self, model):
         is_wrapped = isinstance(model, LLM)
-        ds_config = self.get_ds_eval_config(offload=getattr(model, "_offload", False))
+        ds_config = self.get_ds_eval_config(offload=self.args.ref_offload)
 
         engine, *_ = deepspeed.initialize(
             model=model.model if is_wrapped else model,
