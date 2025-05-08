@@ -17,7 +17,7 @@ python -m oat.experiment.main \
     --gradient-checkpointing \
     --rnd-seed \
     --gpus 8 \
-    --dap-algo DPO \
+    --algo DPO \
     --beta 0.1 \
     --preference-oracle gpt-4o-mini-2024-07-18 \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \

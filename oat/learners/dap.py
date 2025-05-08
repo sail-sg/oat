@@ -159,7 +159,7 @@ class DAPLearner(LearnerBase):
 
                 step_bar.update()
                 self.global_step += 1
-                if self.global_step % self.strategy.accumulated_gradient == 0:
+                if self.global_step % self.strategy.grad_acc_step == 0:
                     learn_batch_time.append(time.time() - st)
                     self.gradient_update_elapse = time.time() - self.gradient_update_st
                     st = time.time()

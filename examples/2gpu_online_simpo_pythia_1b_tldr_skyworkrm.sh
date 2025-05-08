@@ -39,7 +39,7 @@ echo "Start experiment..."
 python -m oat.experiment.main \
     --gpus 2 \
     --collocate \
-    --dap-algo SimPO \
+    --algo SimPO \
     --beta 2 \
     --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \

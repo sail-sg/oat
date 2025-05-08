@@ -72,13 +72,14 @@ class OATArgs:
     # Used in KL-regularized losses.
     beta: float = 0.1
     # cDPO https://arxiv.org/pdf/2305.18290.
-    label_smoothing: float = 0
+    label_smoothing: float = 0.0
     # SimPO https://arxiv.org/pdf/2405.14734.
     gamma_beta_ratio: float = 0.5
     # DPO-Positive https://arxiv.org/pdf/2402.13228.
-    dpo_positive_lambda: float = 0
+    dpo_positive_lambda: float = 0.0
     # DPO + SFT loss coefficient.
-    sft_weight: float = 0
+    sft_weight: float = 0.0
+    len_reg_alpha: float = 0.0
 
     # Oracle.
     oracle: str = "pairrm"

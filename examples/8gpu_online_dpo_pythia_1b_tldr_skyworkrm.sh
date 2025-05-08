@@ -23,7 +23,7 @@ python -m oat.experiment.main \
     --gradient-checkpointing \
     --rnd-seed \
     --gpus 8 \
-    --dap-algo DPO \
+    --algo DPO \
     --beta 0.1 \
     --preference-oracle remote \
     --remote-rm-url http://0.0.0.0:8000 \

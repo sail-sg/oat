@@ -17,7 +17,7 @@
 python -m oat.experiment.main \
     --gpus 2 \
     --collocate \
-    --dap-algo SimPO \
+    --algo SimPO \
     --beta 2 \
     --preference-oracle pairrm \
     --pretrain trl-lib/pythia-1b-deduped-tldr-sft \

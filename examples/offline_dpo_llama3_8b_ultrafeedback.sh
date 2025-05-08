@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-deepspeed --module oat.experiment.offline \
+deepspeed --module oat.experiment.run_offline \
+    --gpus 8 \
     --gradient-checkpointing \
     --flash-attn \
     --rnd-seed \
-    --dap-algo DPO \
+    --algo DPO \
     --pretrain meta-llama/Meta-Llama-3-8B-Instruct \
     --apply-chat-template \
     --ref-offload \
@@ -32,5 +33,6 @@ deepspeed --module oat.experiment.offline \
     --rejected_key rejected \
     --train_split train \
     --train_batch_size 128 \
+    --train_batch_size_per_device 2 \
     --use-wb \
-    --wb-run-name llama3_8b_offline_dpo
+    --wb-run-name llama3_8b_offline_dpo \
