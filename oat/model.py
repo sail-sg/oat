@@ -44,7 +44,7 @@ class LLM(nn.Module):
         lora_rank=0,
         lora_alpha=16,
         lora_dropout=0,
-        target_modules=None,
+        lora_target_modules=None,
         device_map=None,
     ) -> None:
         super().__init__()
@@ -76,15 +76,19 @@ class LLM(nn.Module):
 
             # LoRA
             if lora_rank > 0:
+                logging.info(
+                    f"[Policy Model] Using LoRA: rank={lora_rank},alpha={lora_alpha},dropout={lora_dropout},modules={lora_target_modules}"
+                )
                 # https://github.com/huggingface/peft/issues/137
                 self.model.enable_input_require_grads()
                 lora_config = LoraConfig(
-                    task_type=TaskType.CAUSAL_LM,
                     r=lora_rank,
                     lora_alpha=lora_alpha,
-                    target_modules=target_modules,
+                    target_modules=lora_target_modules,
                     lora_dropout=lora_dropout,
+                    inference_mode=False,
                     bias="none",
+                    task_type=TaskType.CAUSAL_LM,
                 )
                 self.model = get_peft_model(self.model, lora_config)
 
@@ -199,7 +203,7 @@ class Critic(nn.Module):
         lora_rank=0,
         lora_alpha=16,
         lora_dropout=0,
-        target_modules=None,
+        lora_target_modules=None,
         ds_config=None,
         device_map=None,
         init_value_head=True,
@@ -262,12 +266,15 @@ class Critic(nn.Module):
             # LoRA
             if lora_rank > 0:
                 # https://github.com/huggingface/peft/issues/137
+                logging.info(
+                    f"[Critic Model] Using LoRA: rank={lora_rank},alpha={lora_alpha},dropout={lora_dropout},modules={lora_target_modules}"
+                )
                 self.model.enable_input_require_grads()
                 lora_config = LoraConfig(
                     task_type=TaskType.CAUSAL_LM,
                     r=lora_rank,
                     lora_alpha=lora_alpha,
-                    target_modules=target_modules,
+                    target_modules=lora_target_modules,
                     lora_dropout=lora_dropout,
                     bias="none",
                 )

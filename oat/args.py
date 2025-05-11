@@ -13,8 +13,8 @@
 # limitations under the License.
 """Argument parsing."""
 import math
-from dataclasses import dataclass
-from typing import Literal, Optional
+from dataclasses import dataclass, field
+from typing import Literal, Optional, Union
 
 import torch
 import tyro
@@ -48,7 +48,7 @@ class OATArgs:
 
     """Training configurations."""
     # Model name.
-    pretrain: str = "trl-lib/pythia-1b-deduped-tldr-sft"
+    pretrain: str = "Qwen/Qwen2.5-1.5B"
     # Reference model name, defaults to pretrain if None.
     ref_pretrain: str = None
     # Critic initial model.
@@ -220,7 +220,17 @@ class OATArgs:
     load_in_4bit: bool = False
     lora_rank: int = 0
     lora_alpha: int = 16
-    target_modules: str = "all-linear"
+    lora_target_modules: Optional[Union[list[str], str]] = field(
+        default_factory=lambda: [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "down_proj",
+            "up_proj",
+            "gate_proj",
+        ]
+    )
     lora_dropout: float = 0
     gradient_checkpointing_use_reentrant: bool = False
 

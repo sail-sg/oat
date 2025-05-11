@@ -91,7 +91,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             lora_rank=args.lora_rank,
             lora_alpha=args.lora_alpha,
             lora_dropout=args.lora_dropout,
-            target_modules=args.target_modules,
+            lora_target_modules=args.lora_target_modules,
             # ds_config=strategy.get_ds_train_config(is_wrapped=True),
         )
         disable_dropout(self.model)
@@ -665,11 +665,37 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             reset_prefix_cache_futs = [
                 actor.futures.reset_prefix_cache() for actor in self.actors
             ]
-
-        model = self.model.model.module
-        count, num_params = 0, len(list(model.named_parameters()))
+        if self.args.lora_rank > 0:
+            # For LoRA training, merge the model before broadcasting to actors.
+            # TODO: Only broadcasting the LoRA weights.
+            # Reference to https://github.com/shangshang-wang/Tina.
+            unwrapped_model = self.strategy._unwrap_model(self.model)
+            unwrapped_model.merge_adapter()
+            state_dict = unwrapped_model.state_dict()
+            # Remove base_model and base_layer prefixes
+            state_dict = {
+                k.removeprefix("base_model.model.").replace(".base_layer", ""): v
+                for k, v in state_dict.items()
+            }
+            # Remove values with adapter prefix (example: "_lora")
+            state_dict = {
+                k: v for k, v in state_dict.items() if unwrapped_model.prefix not in k
+            }
+            # When module to save, remove its prefix and discard the original module
+            state_dict = {
+                k.replace("modules_to_save.default.", ""): v
+                for k, v in state_dict.items()
+                if "original_module" not in k
+            }
+            state_dict_iterable = state_dict.items()
+            num_params = len(state_dict_iterable)
+        else:
+            model = self.model.model.module
+            state_dict_iterable = model.named_parameters()
+            num_params = len(list(state_dict_iterable))
         torch.cuda.empty_cache()
-        for name, param in model.named_parameters():
+        count = 0
+        for name, param in state_dict_iterable:
             count += 1  # empty_cache at last param
 
             # Fire all vllm engines for broadcast
