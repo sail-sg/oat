@@ -727,6 +727,12 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             _ = [fut.result() for fut in reset_prefix_cache_futs]
         torch.cuda.empty_cache()
         dist.barrier()
+
+        if self.args.lora_rank > 0:
+            # Unmerge the adapter to restore the model to its original state.
+            # This must be done after broadcasting weights to ensure they correspond to the merged state.
+            unwrapped_model.unmerge_adapter()
+
         logging.info(f"weights @version={self.pi_beta_version} broadcasted to actors")
 
     def _post_learning(self):
