@@ -670,6 +670,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             # TODO: Only broadcasting the LoRA weights.
             # Reference to https://github.com/shangshang-wang/Tina.
             unwrapped_model = self.strategy._unwrap_model(self.model)
+            logging.info("merging adapter for LoRA...")
             unwrapped_model.merge_adapter()
             state_dict = unwrapped_model.state_dict()
             # Remove base_model and base_layer prefixes
@@ -731,6 +732,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         if self.args.lora_rank > 0:
             # Unmerge the adapter to restore the model to its original state.
             # This must be done after broadcasting weights to ensure they correspond to the merged state.
+            logging.info("unmerging adapter for LoRA...")
             unwrapped_model.unmerge_adapter()
 
         logging.info(f"weights @version={self.pi_beta_version} broadcasted to actors")

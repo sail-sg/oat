@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pdb
+import pickle
 
 from transformers.trainer import get_scheduler
 
@@ -66,6 +67,7 @@ def main(args: OATArgs):
         for k, v in state_dict.items()
         if "original_module" not in k
     }
+    pickle.dump(state_dict.keys(), open("lora_keys.pkl", "wb"))
     pdb.set_trace()
 
 
