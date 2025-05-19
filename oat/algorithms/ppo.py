@@ -282,6 +282,7 @@ class PPOLearner(RLLearner):
         train_info = {
             "learning_round": learning_round,
             "learn_batch_time": np.mean(learn_batch_time),
+            "total_time": time.time() - st,
             **tree.map_structure(lambda x: x.cpu().float().mean().item(), infos),
         }
         train_info = {

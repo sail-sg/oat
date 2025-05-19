@@ -53,6 +53,9 @@ dependencies = [
   "rich",
   "wandb",
   "wheel",
+  "numpy==1.26.4",
+  "math-verify[antlr4_13_2]",
+  "pylatexenc==2.10",
 ]
 
 [project.urls]
