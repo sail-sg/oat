@@ -24,6 +24,7 @@ from oat.args import OATArgs
 from oat.learners.base import LearnerBase
 from oat.utils.ipc import PlasmaShmServer
 from oat.utils.launcher import get_free_port
+import torch
 
 
 def get_program(
@@ -33,7 +34,7 @@ def get_program(
 ):
     """Define the default distributed program topology with configs."""
     program = lp.Program("oat")
-
+    gpu_offset = (args.group_rank * args.gpus) % torch.cuda.device_count()
     # Resource.
     if args.collocate:
         actor_gpus = learner_gpus = list(range(args.gpus))
@@ -47,6 +48,11 @@ def get_program(
             )
             actor_gpus = list(range(args.gpus // 2 + 1))
             learner_gpus = list(range(args.gpus // 2, args.gpus))
+    actor_gpus = [gpu + gpu_offset for gpu in actor_gpus]
+    learner_gpus = [gpu + gpu_offset for gpu in learner_gpus]
+    
+    learner_world_size = len(learner_gpus) * args.num_groups
+    args.learner_gpus_per_group = len(learner_gpus)
 
     logging.warn(
         f"=== GPU allocations ===\nActor: {actor_gpus}, Learner: {learner_gpus}"
@@ -54,25 +60,29 @@ def get_program(
 
     # IPC.
     ipc_server = program.add_node(
-        lp.CourierNode(PlasmaShmServer, size_mb=args.shm_size_mb), label="ipc_server"
+        lp.CourierNode(PlasmaShmServer, size_mb=args.shm_size_mb), label=f"ipc_server_{args.group_rank}"
     )
 
+    assert len(actor_gpus) % args.num_gpus_per_actor == 0, "Number of GPUs per actor must be a factor of the number of GPUs in a group."
+    assert args.num_gpus_per_actor in [1, 2, 4, 8], "Only 1, 2, 4, 8 GPUs are supported for each actor."
+    
     # Actor.
     vllm_args = {
         "model": args.pretrain,
         "trust_remote_code": True,
-        "tensor_parallel_size": 1,
+        "tensor_parallel_size": args.num_gpus_per_actor,
         "gpu_memory_utilization": args.vllm_gpu_ratio,
         "dtype": "bfloat16",
         "enable_prefix_caching": args.enable_prefix_caching,
         "enable_sleep_mode": args.vllm_sleep,
         "max_model_len": args.max_model_len,
     }
-
+    num_actors = len(actor_gpus) // args.num_gpus_per_actor
     actors = []
     local_resources = {}
-    for i in actor_gpus:
-        label = f"actor_{i}"
+    for i in range(num_actors):
+        label = f"actor_{args.group_rank}_{i}"
+        gpus = actor_gpus[i*args.num_gpus_per_actor:(i+1)*args.num_gpus_per_actor]
         actors.append(
             program.add_node(
                 lp.CourierNode(actor_cls, ipc_server, vllm_args, args),
@@ -80,40 +90,26 @@ def get_program(
             )
         )
         local_resources[label] = local_multi_processing.PythonProcess(
-            env={"CUDA_VISIBLE_DEVICES": str(i)}
+            env={"CUDA_VISIBLE_DEVICES": ','.join(str(i) for i in gpus)}
         )
+        logging.info(f"Actor {label} launched on GPUs {gpus}")
 
     # Learner.
-    master_addr = "0.0.0.0"
-    master_port = get_free_port()
+    master_addr = args.master_addr
+    master_port = args.master_port
     args.local_rank = 0
-    label = "learner_0"
-    master_learner = lp.PyClassNode(
-        learner_cls,
-        len(learner_gpus),
-        0,
-        0,
-        master_addr,
-        master_port,
-        True,
-        args,
-        actors,
-        ipc_server,
-    )
-    program.add_node(master_learner, label=label)
-    local_resources[label] = local_multi_processing.PythonProcess(
-        env={"CUDA_VISIBLE_DEVICES": str(learner_gpus[0])}
-    )
-    for i in range(1, len(learner_gpus)):
-        label = f"learner_{i}"
+    
+    for i in range(0, len(learner_gpus)):
+        rank = args.group_rank * len(learner_gpus) + i
+        label = f"learner_{args.group_rank}_{i}"
         worker_learner = lp.PyClassNode(
             learner_cls,
-            len(learner_gpus),
-            i,
+            learner_world_size,
+            rank,
             i,
             master_addr,
             master_port,
-            False,
+            rank == 0,
             args,
             actors,
             ipc_server,

@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from itertools import accumulate
+import logging
 import time
-from typing import List, Union
+from typing import List, Union, Optional
 
 import Levenshtein
 import numpy as np
 import torch
 import tree
+from torch.distributed import gather_object, scatter_object_list
 
 from oat.actors.base import ActorBase
 from oat.args import OATArgs
@@ -84,22 +87,53 @@ class FeedbackCollector:
 
     def collect_feedback(
         self,
-        prompts: Union[str, List[str]],
+        prompts: List[str],
         formatted_prompts: List[str],
-        refs: Union[str, List[str]],
+        refs: List[str],
+        same_actor_group: torch.distributed.ProcessGroup,
     ):
         # generate response & get feedback
         st_time = time.time()
 
         rank = torch.distributed.get_rank()
-        actor = self.actors[rank % len(self.actors)]
-        if self.args.online_evaluation:
-            handle = actor.step(prompts, formatted_prompts, refs)
+        actor = self.actors[(rank // self.args.num_gpus_per_actor) % len(self.actors)]
+        logging.info(f'Learner {rank} local actor rank: {(rank // self.args.num_gpus_per_actor) % len(self.actors)}')
+        
+        
+        # allgather the arguments and only invoke step on the first rank in the same actor group
+        def prepare_gather_list():
+            return [None] * torch.distributed.get_world_size(same_actor_group) if torch.distributed.get_rank(same_actor_group) == 0 else None
+        gathered_prompts = prepare_gather_list()
+        gathered_formatted_prompts = prepare_gather_list()
+        gathered_refs = prepare_gather_list()
+        logging.info(f'Learner {rank} prompts size: {len(prompts)}, formatted_prompts size: {len(formatted_prompts)}, refs size: {len(refs)}')
+        gather_object(prompts, gathered_prompts, group=same_actor_group, group_dst=0)
+        gather_object(formatted_prompts, gathered_formatted_prompts, group=same_actor_group, group_dst=0)
+        gather_object(refs, gathered_refs, group=same_actor_group, group_dst=0)
+        if torch.distributed.get_rank(same_actor_group) == 0:
+            prompts = [item for sublist in gathered_prompts for item in sublist]
+            formatted_prompts = [item for sublist in gathered_formatted_prompts for item in sublist]
+            if refs is not None:
+                refs = [item for sublist in gathered_refs for item in sublist]
+            rank_lengths = [len(sublist) * self.args.num_samples for sublist in gathered_prompts]
+            logging.info(f'rank {rank} invoking step on actor {actor}')
+            if self.args.online_evaluation:
+                handle = actor.step(prompts, formatted_prompts, refs)
+            else:
+                handle = actor.step(prompts, formatted_prompts)
+            feedback_data: List[Union[PreferenceData, TrajectoryData]] = (
+                self.ipc_client.deserialize_ipc(handle)
+            )
+            logging.info(f'Group Leader Learner {rank} feedback_data size: {len(feedback_data)}')
+            assert len(feedback_data) == sum(rank_lengths)
+            feedback_data = [feedback_data[i:j] for i, j in zip([0] + list(accumulate(rank_lengths)), accumulate(rank_lengths))]
         else:
-            handle = actor.step(prompts, formatted_prompts)
-        feedback_data: List[Union[PreferenceData, TrajectoryData]] = (
-            self.ipc_client.deserialize_ipc(handle)
-        )
+            feedback_data = None
+
+        scattered_feedback_data = [None]
+        torch.distributed.scatter_object_list(scattered_feedback_data, feedback_data, group=same_actor_group, group_src=0)
+        scattered_feedback_data = scattered_feedback_data[0]
+        logging.info(f'Learner {rank} scattered_feedback_data size: {len(scattered_feedback_data)}')
 
         actor_time = time.time() - st_time
-        return feedback_data, self.get_metrics(actor_time, feedback_data)
+        return scattered_feedback_data, self.get_metrics(actor_time, scattered_feedback_data)

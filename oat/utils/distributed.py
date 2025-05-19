@@ -135,7 +135,7 @@ class WorkerWrap:
             torch.distributed.is_initialized()
         ), "default torch process group must be initialized"
         assert group_name != "", "group name must not be empty"
-
+        
         rank = torch.distributed.get_rank() + rank_offset
         self._model_update_group = init_process_group(
             backend=backend,
@@ -148,7 +148,7 @@ class WorkerWrap:
             f"init_process_group: master_address={master_address}, master_port={master_port}, "
             f"rank={rank}, world_size={world_size}, group_name={group_name}",
         )
-        return self._model_update_group
+        return self._model_update_group if torch.distributed.get_world_size() <= 1 else None
 
     def update_weight(
         self, name, dtype, shape, cuda_ipc_handles=None, empty_cache=False

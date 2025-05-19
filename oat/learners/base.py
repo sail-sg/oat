@@ -19,7 +19,7 @@ import os
 import socket
 import time
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple, Union
 
 import deepspeed
@@ -84,7 +84,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
         # Init actors async.
         actor_init_futs = None
-        if actors and strategy.is_rank_0():
+        if actors and strategy.is_group_rank_0():
             actor_init_futs = [
                 actor.futures.init(i, self.save_path) for i, actor in enumerate(actors)
             ]
@@ -199,6 +199,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.update_interval = args.rollout_batch_size // (
             strategy.world_size * args.rollout_batch_size_per_device
         )
+        assert args.rollout_batch_size % (strategy.world_size * args.rollout_batch_size_per_device) == 0, "rollout_batch_size must be divisible by the number of actors and the number of GPUs per actor"
 
         self.global_step = 0
         self.pi_beta_version = 0
@@ -229,18 +230,20 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         # For ZeRO-3:
         #   1. AllGather parameters to rank 0
         #   2. Broadcast parameters from rank 0 to all vllm engines
+        logging.info(f"Initializing process group for actors {actors}")
         backend = "gloo" if self.args.collocate else "nccl"
-        if actors and strategy.is_rank_0():
+        if actors and strategy.is_group_rank_0():
             master_addr = node_ip_address_from_perspective()
             with socket.socket() as sock:
                 sock.bind(("", 0))
                 master_port = sock.getsockname()[1]
-            world_size = len(actors) + 1
+            
+            world_size = len(actors) * args.num_gpus_per_actor + 1
             futs = [
                 actor.futures.init_process_group(
                     master_addr,
                     master_port,
-                    i + 1,
+                    i * args.num_gpus_per_actor + 1,
                     world_size,
                     "oat",
                     backend=backend,
@@ -254,8 +257,26 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 rank=0,
                 group_name="oat",
             )
+            
             _ = [fut.result() for fut in futs]
+        self._same_actor_group = None
+        dist.barrier()
+        torch.cuda.synchronize()
+        assert len(actors) * args.num_gpus_per_actor * args.num_groups == strategy.world_size, 'Unequal amount of actor and learners'
+        same_actor_group_ranks = [list(range(i, i + args.num_gpus_per_actor)) for i in range(0, strategy.world_size, args.num_gpus_per_actor)]
+        
+        for group_ranks in same_actor_group_ranks:
+            group = dist.new_group(ranks=group_ranks, timeout=timedelta(minutes=30))
+            if strategy.get_rank() in group_ranks:
+                self._same_actor_group = group
+                logging.info(f'Initializing same actor group for Learner {strategy.get_rank()} ranks: {group_ranks}')
 
+        assert self._same_actor_group is not None, 'Failed to initialize actor group'
+        
+        logging.info(f'Same actor group for Learner {strategy.get_rank()}: {self._same_actor_group}')
+        dist.barrier(group=self._same_actor_group)
+
+        logging.info(f"Process group initialized for actors {actors}")
         dist.barrier()
 
     def prepare_data(self, strategy, tokenizer):
@@ -314,7 +335,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                     break
                 # Call actor.step remotely to generate rollout & collect feedback.
                 feedback_data, self.actor_info = self.collector.collect_feedback(
-                    raw_prompts, processed_prompts, refs
+                    raw_prompts, processed_prompts, refs, self._same_actor_group
                 )
                 dist.barrier()
 
@@ -537,7 +558,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
     def _pre_evaluate(self):
         # Let Actors cache the current behavior policy.
-        if self.strategy.is_rank_0():
+        if self.strategy.is_group_rank_0():
             done = [
                 actor.futures.notify_eval_start(self.pi_beta_lags_behind)
                 for actor in self.actors
@@ -551,7 +572,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
     def _post_evaluate(self):
         # Recover Actors' original behavior policy.
-        if self.strategy.is_rank_0():
+        if self.strategy.is_group_rank_0():
             done = [
                 actor.futures.notify_eval_done(self.pi_beta_lags_behind)
                 for actor in self.actors
@@ -664,7 +685,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                     break
 
         reset_prefix_cache_futs = []
-        if self.args.enable_prefix_caching and self.strategy.is_rank_0():
+        if self.args.enable_prefix_caching and self.strategy.is_group_rank_0():
             reset_prefix_cache_futs = [
                 actor.futures.reset_prefix_cache() for actor in self.actors
             ]
@@ -676,7 +697,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             count += 1  # empty_cache at last param
 
             # Fire all vllm engines for broadcast
-            if self.strategy.is_rank_0():
+            if self.strategy.is_group_rank_0():
                 shape = (
                     param.shape
                     if self.strategy.args.zero_stage != 3
@@ -696,7 +717,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             with deepspeed.zero.GatheredParameters(
                 [param], enabled=self.strategy.args.zero_stage == 3
             ):
-                if self.strategy.is_rank_0():
+                if self.strategy.is_group_rank_0():
                     dist.broadcast(param.data, 0, group=self._model_update_group)
                     _ = [fut.result() for fut in futs]
 
@@ -714,7 +735,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             st = time.time()
             torch.cuda.synchronize()
             dist.barrier()
-            if self.strategy.is_rank_0():
+            if self.strategy.is_group_rank_0():
                 futs = [actor.futures.wake_up() for actor in self.actors]
                 _ = [fut.result() for fut in futs]
             torch.cuda.synchronize()
@@ -727,7 +748,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             st = time.time()
             torch.cuda.synchronize()
             dist.barrier()
-            if self.strategy.is_rank_0():
+            if self.strategy.is_group_rank_0():
                 futs = [actor.futures.sleep() for actor in self.actors]
                 _ = [fut.result() for fut in futs]
             torch.cuda.synchronize()

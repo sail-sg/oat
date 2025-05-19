@@ -29,8 +29,17 @@ class OATArgs:
     """Resources."""
     # Launchpad launch type
     launch_type: str = "local_mp"
-    # Number of GPUs to run the experiment.
+    # Number of GPUs to run in this group.
     gpus: int = 8
+    # Number of GPUs per actor.
+    num_gpus_per_actor: int = 1
+    # Id of this group.
+    group_rank: int = 0
+    # Number of groups.
+    num_groups: int = 1
+    # Master address and port.
+    master_addr: str = "0.0.0.0"
+    master_port: int = 29500
     # Ratio of pre-allocated GPU memory for vLLM.
     vllm_gpu_ratio: float = 0.25
     # Max model length.

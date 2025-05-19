@@ -36,6 +36,7 @@ class DAPwRMLearner(DAPLearner):
 
         assert args.exp_method != "no" and args.rm_pretrain == ""
         rm_cls = getattr(model, args.exp_method)
+        assert args.num_groups == 1, "Only one group is supported for reward model."
         if self.strategy.is_rank_0():
             self.rm: model.RewardModel = rm_cls(args).to(torch.cuda.current_device())
             self.r_buffer = UniformBuffer(args.r_buffer_maxlen)

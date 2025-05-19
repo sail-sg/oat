@@ -216,7 +216,6 @@ class DeepspeedStrategy(ABC):
 
     def setup_distributed(self, timeout=timedelta(minutes=60)) -> None:
         self.set_seed(self.seed)
-
         if self.args.local_rank == -1 and "LOCAL_RANK" in os.environ:  # for slurm
             self.args.local_rank = int(os.environ["LOCAL_RANK"])
 
@@ -642,6 +641,9 @@ class DeepspeedStrategy(ABC):
 
     def is_rank_0(self) -> bool:
         return dist.get_rank() == 0
+    
+    def is_group_rank_0(self) -> bool:
+        return dist.get_rank() % self.args.learner_gpus_per_group == 0
 
     def get_rank(self) -> int:
         return dist.get_rank()
