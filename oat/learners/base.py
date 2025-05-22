@@ -100,7 +100,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             lora_alpha=args.lora_alpha,
             lora_dropout=args.lora_dropout,
             target_modules=args.target_modules,
-            # ds_config=strategy.get_ds_train_config(is_wrapped=True),
+            ds_config=strategy.get_ds_train_config(is_wrapped=True),
         )
         disable_dropout(self.model)
         if args.gradient_checkpointing:
@@ -259,22 +259,23 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             )
             
             _ = [fut.result() for fut in futs]
-        self._same_actor_group = None
-        dist.barrier()
-        torch.cuda.synchronize()
-        assert len(actors) * args.num_gpus_per_actor * args.num_groups == strategy.world_size, 'Unequal amount of actor and learners'
-        same_actor_group_ranks = [list(range(i, i + args.num_gpus_per_actor)) for i in range(0, strategy.world_size, args.num_gpus_per_actor)]
-        
-        for group_ranks in same_actor_group_ranks:
-            group = dist.new_group(ranks=group_ranks, timeout=timedelta(minutes=30))
-            if strategy.get_rank() in group_ranks:
-                self._same_actor_group = group
-                logging.info(f'Initializing same actor group for Learner {strategy.get_rank()} ranks: {group_ranks}')
+        if len(actors) > 0:
+            self._same_actor_group = None
+            dist.barrier()
+            torch.cuda.synchronize()
+            assert len(actors) * args.num_gpus_per_actor * args.num_groups == strategy.world_size, 'Unequal amount of actor and learners'
+            same_actor_group_ranks = [list(range(i, i + args.num_gpus_per_actor)) for i in range(0, strategy.world_size, args.num_gpus_per_actor)]
+            
+            for group_ranks in same_actor_group_ranks:
+                group = dist.new_group(ranks=group_ranks, timeout=timedelta(minutes=60), backend="gloo")
+                if strategy.get_rank() in group_ranks:
+                    self._same_actor_group = group
+                    logging.info(f'Initializing same actor group for Learner {strategy.get_rank()} ranks: {group_ranks}')
 
-        assert self._same_actor_group is not None, 'Failed to initialize actor group'
-        
-        logging.info(f'Same actor group for Learner {strategy.get_rank()}: {self._same_actor_group}')
-        dist.barrier(group=self._same_actor_group)
+            assert self._same_actor_group is not None, 'Failed to initialize actor group'
+            
+            logging.info(f'Same actor group for Learner {strategy.get_rank()}: {self._same_actor_group}')
+            dist.barrier(group=self._same_actor_group)
 
         logging.info(f"Process group initialized for actors {actors}")
         dist.barrier()
@@ -648,7 +649,9 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             response_len = np.mean(
                 tree.map_structure(lambda x: len(self.tokenizer.encode(x)), responses)
             )
-
+        # We first do a CPU barrier to avoid placing a barrier on the GPU.
+        dist.barrier(group=self._same_actor_group)
+        logging.info(f'rank {self.strategy.get_rank()} cpubarrier done')
         dist.barrier()
 
         win_rate = self.strategy.broadcast(win_rate)

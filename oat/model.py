@@ -15,6 +15,7 @@
 # Reference to https://github.com/OpenRLHF/OpenRLHF.
 
 import logging
+import contextlib
 from typing import Optional
 
 import deepspeed
@@ -24,6 +25,7 @@ from peft import LoraConfig, TaskType, get_peft_model
 from peft.tuners.lora import LoraLayer
 from torch import nn
 from transformers import AutoConfig, AutoModel, AutoModelForCausalLM, BitsAndBytesConfig
+import transformers
 
 
 def log_probs_from_logits(logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
@@ -46,6 +48,7 @@ class LLM(nn.Module):
         lora_dropout=0,
         target_modules=None,
         device_map=None,
+        ds_config=None,
     ) -> None:
         super().__init__()
 
@@ -64,15 +67,24 @@ class LLM(nn.Module):
                 )
             else:
                 nf4_config = None
+            if ds_config is not None and ds_config["zero_optimization"]["stage"] == 3:
+                # https://huggingface.co/docs/transformers/en/main_classes/deepspeed
+                # This object should be kept alive though not used in the code.
+                self.dschf = transformers.integrations.HfDeepSpeedConfig(ds_config)
+                zero_init_context = deepspeed.zero.Init(config=ds_config)
+            else:
+                zero_init_context = contextlib.nullcontext()
 
-            self.model = AutoModelForCausalLM.from_pretrained(
-                pretrain_or_model,
-                trust_remote_code=True,
-                attn_implementation=attn_implementation,
-                quantization_config=nf4_config,
-                torch_dtype=torch.bfloat16 if bf16 else "auto",
-                device_map=device_map,
-            )
+            with zero_init_context:
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    pretrain_or_model,
+                    trust_remote_code=True,
+                    attn_implementation=attn_implementation,
+                    quantization_config=nf4_config,
+                    torch_dtype=torch.bfloat16 if bf16 else "auto",
+                    device_map=device_map,
+                )
+
 
             # LoRA
             if lora_rank > 0:
