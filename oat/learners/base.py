@@ -199,7 +199,11 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.update_interval = args.rollout_batch_size // (
             strategy.world_size * args.rollout_batch_size_per_device
         )
-        assert args.rollout_batch_size % (strategy.world_size * args.rollout_batch_size_per_device) == 0, "rollout_batch_size must be divisible by the number of actors and the number of GPUs per actor"
+        assert (
+            args.rollout_batch_size
+            % (strategy.world_size * args.rollout_batch_size_per_device)
+            == 0
+        ), "rollout_batch_size must be divisible by the number of actors and the number of GPUs per actor"
 
         self.global_step = 0
         self.pi_beta_version = 0
@@ -237,7 +241,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             with socket.socket() as sock:
                 sock.bind(("", 0))
                 master_port = sock.getsockname()[1]
-            
+
             world_size = len(actors) * args.num_gpus_per_actor + 1
             futs = [
                 actor.futures.init_process_group(
@@ -257,24 +261,38 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 rank=0,
                 group_name="oat",
             )
-            
+
             _ = [fut.result() for fut in futs]
         if len(actors) > 0:
             self._same_actor_group = None
             dist.barrier()
             torch.cuda.synchronize()
-            assert len(actors) * args.num_gpus_per_actor * args.num_groups == strategy.world_size, 'Unequal amount of actor and learners'
-            same_actor_group_ranks = [list(range(i, i + args.num_gpus_per_actor)) for i in range(0, strategy.world_size, args.num_gpus_per_actor)]
-            
+            assert (
+                len(actors) * args.num_gpus_per_actor * args.num_groups
+                == strategy.world_size
+            ), "Unequal amount of actor and learners"
+            same_actor_group_ranks = [
+                list(range(i, i + args.num_gpus_per_actor))
+                for i in range(0, strategy.world_size, args.num_gpus_per_actor)
+            ]
+
             for group_ranks in same_actor_group_ranks:
-                group = dist.new_group(ranks=group_ranks, timeout=timedelta(minutes=60), backend="gloo")
+                group = dist.new_group(
+                    ranks=group_ranks, timeout=timedelta(minutes=60), backend="gloo"
+                )
                 if strategy.get_rank() in group_ranks:
                     self._same_actor_group = group
-                    logging.info(f'Initializing same actor group for Learner {strategy.get_rank()} ranks: {group_ranks}')
+                    logging.info(
+                        f"Initializing same actor group for Learner {strategy.get_rank()} ranks: {group_ranks}"
+                    )
 
-            assert self._same_actor_group is not None, 'Failed to initialize actor group'
-            
-            logging.info(f'Same actor group for Learner {strategy.get_rank()}: {self._same_actor_group}')
+            assert (
+                self._same_actor_group is not None
+            ), "Failed to initialize actor group"
+
+            logging.info(
+                f"Same actor group for Learner {strategy.get_rank()}: {self._same_actor_group}"
+            )
             dist.barrier(group=self._same_actor_group)
 
         logging.info(f"Process group initialized for actors {actors}")
@@ -651,7 +669,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             )
         # We first do a CPU barrier to avoid placing a barrier on the GPU.
         dist.barrier(group=self._same_actor_group)
-        logging.info(f'rank {self.strategy.get_rank()} cpubarrier done')
+        logging.info(f"rank {self.strategy.get_rank()} cpubarrier done")
         dist.barrier()
 
         win_rate = self.strategy.broadcast(win_rate)

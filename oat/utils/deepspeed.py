@@ -641,7 +641,7 @@ class DeepspeedStrategy(ABC):
 
     def is_rank_0(self) -> bool:
         return dist.get_rank() == 0
-    
+
     def is_group_rank_0(self) -> bool:
         return dist.get_rank() % self.args.learner_gpus_per_group == 0
 

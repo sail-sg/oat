@@ -16,6 +16,7 @@ import logging
 from typing import Type
 
 import launchpad as lp
+import torch
 from launchpad.nodes.python import local_multi_processing
 
 from oat.actors import PreferenceActor
@@ -23,8 +24,6 @@ from oat.actors.base import ActorBase
 from oat.args import OATArgs
 from oat.learners.base import LearnerBase
 from oat.utils.ipc import PlasmaShmServer
-from oat.utils.launcher import get_free_port
-import torch
 
 
 def get_program(
@@ -50,7 +49,7 @@ def get_program(
             learner_gpus = list(range(args.gpus // 2, args.gpus))
     actor_gpus = [gpu + gpu_offset for gpu in actor_gpus]
     learner_gpus = [gpu + gpu_offset for gpu in learner_gpus]
-    
+
     learner_world_size = len(learner_gpus) * args.num_groups
     args.learner_gpus_per_group = len(learner_gpus)
 
@@ -60,12 +59,20 @@ def get_program(
 
     # IPC.
     ipc_server = program.add_node(
-        lp.CourierNode(PlasmaShmServer, size_mb=args.shm_size_mb), label=f"ipc_server_{args.group_rank}"
+        lp.CourierNode(PlasmaShmServer, size_mb=args.shm_size_mb),
+        label=f"ipc_server_{args.group_rank}",
     )
 
-    assert len(actor_gpus) % args.num_gpus_per_actor == 0, "Number of GPUs per actor must be a factor of the number of GPUs in a group."
-    assert args.num_gpus_per_actor in [1, 2, 4, 8], "Only 1, 2, 4, 8 GPUs are supported for each actor."
-    
+    assert (
+        len(actor_gpus) % args.num_gpus_per_actor == 0
+    ), "Number of GPUs per actor must be a factor of the number of GPUs in a group."
+    assert args.num_gpus_per_actor in [
+        1,
+        2,
+        4,
+        8,
+    ], "Only 1, 2, 4, 8 GPUs are supported for each actor."
+
     # Actor.
     vllm_args = {
         "model": args.pretrain,
@@ -82,7 +89,9 @@ def get_program(
     local_resources = {}
     for i in range(num_actors):
         label = f"actor_{args.group_rank}_{i}"
-        gpus = actor_gpus[i*args.num_gpus_per_actor:(i+1)*args.num_gpus_per_actor]
+        gpus = actor_gpus[
+            i * args.num_gpus_per_actor : (i + 1) * args.num_gpus_per_actor
+        ]
         actors.append(
             program.add_node(
                 lp.CourierNode(actor_cls, ipc_server, vllm_args, args),
@@ -90,7 +99,7 @@ def get_program(
             )
         )
         local_resources[label] = local_multi_processing.PythonProcess(
-            env={"CUDA_VISIBLE_DEVICES": ','.join(str(i) for i in gpus)}
+            env={"CUDA_VISIBLE_DEVICES": ",".join(str(i) for i in gpus)}
         )
         logging.info(f"Actor {label} launched on GPUs {gpus}")
 
@@ -98,7 +107,7 @@ def get_program(
     master_addr = args.master_addr
     master_port = args.master_port
     args.local_rank = 0
-    
+
     for i in range(0, len(learner_gpus)):
         rank = args.group_rank * len(learner_gpus) + i
         label = f"learner_{args.group_rank}_{i}"

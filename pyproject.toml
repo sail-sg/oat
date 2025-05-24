@@ -11,13 +11,12 @@ requires-python = ">=3.8, <3.11"
 keywords = ["rlhf", "llm reasoning", "llm", "ai-alignment", "rl", "bandit", "ai", "sample-efficiency"]
 authors = [
   { name = "Zichen Liu", email = "liuzc@sea.com" },
+  { name = "Xinyi Wan", email = "wanxy@sea.com" },
   { name = "Changyu Chen", email = "chency@sea.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",

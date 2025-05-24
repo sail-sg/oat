@@ -14,18 +14,18 @@
 
 # Reference to https://github.com/OpenRLHF/OpenRLHF.
 
-import logging
 import contextlib
+import logging
 from typing import Optional
 
 import deepspeed
 import torch
 import torch.nn.functional as F
+import transformers
 from peft import LoraConfig, TaskType, get_peft_model
 from peft.tuners.lora import LoraLayer
 from torch import nn
 from transformers import AutoConfig, AutoModel, AutoModelForCausalLM, BitsAndBytesConfig
-import transformers
 
 
 def log_probs_from_logits(logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
@@ -84,7 +84,6 @@ class LLM(nn.Module):
                     torch_dtype=torch.bfloat16 if bf16 else "auto",
                     device_map=device_map,
                 )
-
 
             # LoRA
             if lora_rank > 0:

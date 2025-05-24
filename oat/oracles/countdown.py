@@ -85,6 +85,7 @@ def compute_score(solution_str, ground_truth, format_score=0.1, score=1.0):
 
     equation = extract_solution(solution_str=solution_str)
     import random
+
     do_print = random.randint(1, 64) == 1
     # do_print = True
 
