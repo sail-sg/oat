@@ -72,9 +72,9 @@ sampling_params = SamplingParams(
 )
 
 if tokenizer.bos_token:
-    # lstrip bos_token because vllm will add it.
+    # removeprefix bos_token because vllm will add it.
     print(conversations[0].startswith(tokenizer.bos_token))
-    conversations = [p.lstrip(tokenizer.bos_token) for p in conversations]
+    conversations = [p.removeprefix(tokenizer.bos_token) for p in conversations]
 
 outputs = llm.generate(conversations[:1], sampling_params)
 
