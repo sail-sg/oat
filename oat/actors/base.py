@@ -125,8 +125,8 @@ class ActorBase(abc.ABC):
         if isinstance(prompts[0], str):
             # Inference with text input
             if self.tokenizer.bos_token:
-                # lstrip bos_token because vllm will add it.
-                prompts = [p.lstrip(self.tokenizer.bos_token) for p in prompts]
+                # removeprefix bos_token because vllm will add it.
+                prompts = [p.removeprefix(self.tokenizer.bos_token) for p in prompts]
             outputs = self.llm.generate(
                 prompts, sampling_params=sampling_params, use_tqdm=False
             )
