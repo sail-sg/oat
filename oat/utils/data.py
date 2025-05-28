@@ -301,7 +301,7 @@ class PreferenceDataset(Dataset):
             )
             prompt_ids_len = prompt_token["attention_mask"].int().sum().item()
             if prompt_ids_len >= self.prompt_max_length - 2:
-                logging.warn("Masking samples with too long prompts")
+                logging.warning("Masking samples with too long prompts")
                 loss_mask = True
 
             self.prompt_ids_lens.append(prompt_ids_len)

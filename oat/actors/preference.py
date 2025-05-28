@@ -43,7 +43,7 @@ class PreferenceActor(ActorBase):
         self.learning_rm = False
         if args.exp_method == "no":
             if self.sampling_params.n > 2:
-                logging.warn(
+                logging.warning(
                     f"trying to sample {self.sampling_params.n} responses but "
                     "no selection mechanism is provided"
                 )

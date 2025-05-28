@@ -130,7 +130,7 @@ class GPTJudgeOracle(PreferenceOracleBase):
                 completion, numerator_token="0", denominator_tokens=["0", "1"]
             )
             if np.isnan(first_win_prob):
-                logging.warn("Invalid win prob!")
+                logging.warning("Invalid win prob!")
                 with self.mutex:
                     self.invalid_count += 1
                 return np.random.uniform(0, 1)

@@ -54,7 +54,7 @@ class PlasmaShmServer:
                     code = shm_process.poll()
 
                 if code is not None:
-                    logging.warn(f"Plasma daemon process error {code}")
+                    logging.warning(f"Plasma daemon process error {code}")
                     break
 
     def run(self):

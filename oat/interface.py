@@ -42,7 +42,7 @@ def get_program(
             actor_gpus = list(range(args.gpus // 2))
             learner_gpus = list(range(args.gpus // 2, args.gpus))
         else:
-            logging.warn(
+            logging.warning(
                 "Number of GPUs not divisible by 2, one GPU will be forced to collocate learner and actor."
             )
             actor_gpus = list(range(args.gpus // 2 + 1))
@@ -53,7 +53,7 @@ def get_program(
     learner_world_size = len(learner_gpus) * args.num_groups
     args.learner_gpus_per_group = len(learner_gpus)
 
-    logging.warn(
+    logging.warning(
         f"=== GPU allocations ===\nActor: {actor_gpus}, Learner: {learner_gpus}"
     )
 
