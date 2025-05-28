@@ -16,7 +16,7 @@
 
 import contextlib
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 import deepspeed
 import torch
@@ -137,13 +137,17 @@ class LLM(nn.Module):
         self,
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.Tensor] = None,
+        logits_to_keep: Union[int, torch.Tensor] = 0,
     ) -> torch.Tensor:
         """Returns action log probs"""
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
 
         return self.model(
-            input_ids, attention_mask=attention_mask, position_ids=position_ids
+            input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            logits_to_keep=logits_to_keep,
         )
 
     def gradient_checkpointing_enable(

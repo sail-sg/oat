@@ -208,6 +208,7 @@ class OATArgs:
     adam_beta_2: float = 0.95
     l2: float = 0.0
     gradient_checkpointing: bool = False
+    activation_offloading: bool = False
     seed: int = 42
     disable_fast_tokenizer: bool = False
     local_rank: int = -1
