@@ -141,7 +141,7 @@ def main(
         math_reward_fn = boxed_reward_fn
         apply_template = apply_prime_zero_template
     elif template == "open-reasoner-zero":
-        from rl_playground.math_grader import answer_tag_reward_fn_for_orz
+        from oat.utils.math_grader import answer_tag_reward_fn_for_orz
 
         math_reward_fn = answer_tag_reward_fn_for_orz
         apply_template = apply_open_reasoner_zero_template

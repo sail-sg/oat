@@ -24,6 +24,7 @@ from oat.actors.base import ActorBase
 from oat.args import OATArgs
 from oat.learners.base import LearnerBase
 from oat.utils.ipc import PlasmaShmServer
+from oat.utils.launcher import get_free_port
 
 
 def get_program(
@@ -105,7 +106,7 @@ def get_program(
 
     # Learner.
     master_addr = args.master_addr
-    master_port = args.master_port
+    master_port = args.master_port or get_free_port()
     args.local_rank = 0
 
     for i in range(0, len(learner_gpus)):

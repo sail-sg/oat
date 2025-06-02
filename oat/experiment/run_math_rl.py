@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import functools
-import gc
 import itertools
 import logging
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from multiprocessing import Pool, TimeoutError
 from typing import Any, List, Literal, Tuple
@@ -172,7 +170,6 @@ class ZeroMathArgs(PPOArgs):
     correct_reward: float = 1.0
     incorrect_reward: float = 0.0
     # Ablations.
-    critic_type: Literal["ppo", "grpo", "drgrpo", "dapo"] = "drgrpo"
     remove_std_bias: bool = False
     remove_len_bias: bool = False
     # Data mixer
@@ -350,306 +347,6 @@ class ZeroMathLearner(PPOLearner):
                 self.masked_aggregator = functools.partial(
                     masked_sum, constant_normalizer=args.generate_max_length
                 )
-        if args.critic_type == "dapo":
-            # DAPO-like loss is equivalent to summed loss with pre-normalized advantages;
-            # See `compute_monte_carlo_advantages` below for the pre-normalization.
-            self.masked_aggregator = functools.partial(
-                masked_sum, constant_normalizer=1
-            )
-
-    def learning_step(self, trajectory):
-        args: ZeroMathArgs = self.args
-        infos = {}
-        device = torch.cuda.current_device()
-        input_ids = trajectory["input_ids"].to(device)
-        att_mask = trajectory["attention_mask"].to(device)
-        final_rewards = (
-            torch.tensor([r[-1] for r in trajectory["rewards"]])
-            .to(device)
-            .reshape(-1, 1)
-        ).float() * args.reward_scale
-        prompt_id_lens = trajectory["prompt_ids_lens"]
-        # action_logprobs = [
-        #     torch.tensor(lp).to(device) for lp in trajectory["action_logprobs"]
-        # ]
-        loss_masks = torch.tensor(trajectory["loss_masks"]).float().to(device)
-        completion_masks = self.get_completion_mask(att_mask, prompt_id_lens)
-        response_masks = completion_masks[:, 1:]
-
-        logging.info(f"learn data size {input_ids.shape}")
-
-        indices = torch.arange(
-            response_masks.size(1), device=response_masks.device
-        ).expand_as(response_masks)
-        masked_indices = torch.where(
-            response_masks, indices, torch.full_like(indices, -1)
-        )
-        eos_indices = masked_indices.max(dim=1).values
-
-        # Forward old models.
-        ## 1) (Option 1) Policy log probabilities are directly from actors (vLLM).
-        # logps = torch.zeros_like(response_masks).float()
-        # for i in range(len(logps)):
-        #     logps[i, torch.where(response_masks[i])[0]] = action_logprobs[i]
-        ## 2) (Option 2) Reevaluate log probabilities using learner model.
-        logps = torch.zeros(
-            input_ids.shape[0], input_ids.shape[1] - 1, device=input_ids.device
-        )
-        with torch.no_grad():
-            for i in range(0, len(input_ids), args.train_batch_size_per_device):
-                mini_batch_inds = torch.arange(i, i + args.train_batch_size_per_device)
-                mb_input_ids = input_ids[mini_batch_inds]
-                mb_att_mask = att_mask[mini_batch_inds]
-                mb_response_masks = response_masks[mini_batch_inds]
-
-                # Remove unnecessary padding introduced by the large PPO batch.
-                mb_valid_token_count_per_pos = mb_att_mask.sum(0)
-                mb_last_valid_token_pos = torch.where(
-                    mb_valid_token_count_per_pos == 0
-                )[0]
-                if len(mb_last_valid_token_pos) >= 1:
-                    mb_last_valid_token_pos = mb_last_valid_token_pos[0]
-                else:
-                    mb_last_valid_token_pos = mb_att_mask.shape[1]
-                mb_input_ids = mb_input_ids[:, :mb_last_valid_token_pos]
-                mb_att_mask = mb_att_mask[:, :mb_last_valid_token_pos]
-                mb_response_masks = mb_response_masks[:, : mb_last_valid_token_pos - 1]
-
-                batch_logits = self.model(mb_input_ids, attention_mask=mb_att_mask)[
-                    "logits"
-                ].float()
-
-                # NOTE(liuzc): The order of temperature and min_p need to follow that of sampler.
-                # For now: https://github.com/vllm-project/vllm/blob/main/vllm/v1/sample/sampler.py#L108
-
-                # Apply temperature scaling.
-                batch_logits /= args.temperature
-
-                batch_logps = self.get_batch_logps(
-                    batch_logits,
-                    mb_input_ids,
-                    mb_response_masks,
-                )
-
-                logps[mini_batch_inds, : mb_last_valid_token_pos - 1] = batch_logps
-
-        ## 2) Reference.
-        if self.ref_model is not None:
-            all_ref_logps = []
-            with torch.no_grad():
-                for i in range(0, len(input_ids), args.train_batch_size_per_device):
-                    batch_inds = torch.arange(i, i + args.train_batch_size_per_device)
-
-                    batch_ref_logits = self.ref_model(
-                        input_ids[batch_inds], attention_mask=att_mask[batch_inds]
-                    )["logits"].float()
-                    batch_ref_logits /= args.temperature
-
-                    batch_ref_logps = self.get_batch_logps(
-                        batch_ref_logits,
-                        input_ids[batch_inds],
-                        response_masks[batch_inds],
-                    )
-                    all_ref_logps.append(batch_ref_logps)
-            ref_logps = torch.cat(all_ref_logps)
-
-            # Combine final reward and kl penalty as rewards.
-            kl_rewards = -args.kl_penalty_coef * (logps - ref_logps) * response_masks
-            rewards = kl_rewards.clone()
-            del all_ref_logps
-            torch.cuda.empty_cache()
-            gc.collect()
-        else:
-            rewards = torch.zeros_like(response_masks).float()
-
-        rewards[torch.arange(len(rewards)), eos_indices] += final_rewards.squeeze()
-
-        if self.args.critic_type == "ppo":
-            advantages, returns, values = self.compute_ppo_advantages(
-                rewards, input_ids, att_mask, response_masks
-            )
-        elif self.args.critic_type in ["grpo", "drgrpo"]:
-            advantages = self.compute_monte_carlo_advantages(rewards, response_masks)[
-                :, None
-            ]
-
-        # Compute losses and update models for multiple PPO epochs.
-        stats = defaultdict(list)
-        local_grad_step = 0
-        for _ in range(args.num_ppo_epochs):
-            batch_inds = np.random.permutation(len(input_ids))
-            for b_st in range(0, len(input_ids), args.train_batch_size_per_device):
-                local_grad_step += 1
-                mini_batch_inds = batch_inds[
-                    b_st : b_st + args.train_batch_size_per_device
-                ]
-                mb_advantage = advantages[mini_batch_inds]
-                mb_input_ids = input_ids[mini_batch_inds]
-                mb_att_mask = att_mask[mini_batch_inds]
-                mb_response_masks = response_masks[mini_batch_inds]
-                mb_logps = logps[mini_batch_inds]
-                mb_loss_masks = loss_masks[mini_batch_inds]
-
-                # Remove unnecessary padding introduced by the large PPO batch.
-                mb_valid_token_count_per_pos = mb_att_mask.sum(0)
-                mb_last_valid_token_pos = torch.where(
-                    mb_valid_token_count_per_pos == 0
-                )[0]
-                if len(mb_last_valid_token_pos) >= 1:
-                    mb_last_valid_token_pos = mb_last_valid_token_pos[0]
-                else:
-                    mb_last_valid_token_pos = mb_att_mask.shape[1]
-                # # Further reduce valid token num to speed up IF:
-                # ## 1. We only have PG loss, i.e., args.beta == 0.
-                # ## 2. Advantage is zero in bandit case (e.g., GRPO).
-                # ## 3. train_batch_size_per_device is 1.
-                # if (
-                #     args.beta == 0
-                #     and self.args.critic_type == "grpo"
-                #     and len(mb_advantage) == 1
-                # ):
-                #     zero_adv = (mb_advantage == 0).item()  # bool
-                #     if zero_adv:
-                #         mb_last_valid_token_pos = 7  # An unimportant magic number.
-                mb_input_ids = mb_input_ids[:, :mb_last_valid_token_pos]
-                mb_att_mask = mb_att_mask[:, :mb_last_valid_token_pos]
-                mb_response_masks = mb_response_masks[:, : mb_last_valid_token_pos - 1]
-                mb_logps = mb_logps[:, : mb_last_valid_token_pos - 1]
-
-                if self.args.critic_type == "ppo":
-                    mb_return = returns[mini_batch_inds, : mb_last_valid_token_pos - 1]
-                    mb_values = values[mini_batch_inds, : mb_last_valid_token_pos - 1]
-                    mb_advantage = mb_advantage[:, : mb_last_valid_token_pos - 1]
-
-                # Policy learning.
-                logits = self.model(mb_input_ids, attention_mask=mb_att_mask)[
-                    "logits"
-                ].float()
-                logits /= args.temperature
-
-                new_logps = self.get_batch_logps(
-                    logits,
-                    mb_input_ids,
-                    mb_response_masks,
-                )
-
-                if args.reinforce_update:
-                    pg_loss_max = -mb_advantage * new_logps
-                else:
-                    logprobs_diff = new_logps - mb_logps
-                    ratio = torch.exp(logprobs_diff)
-                    pg_losses = -mb_advantage * ratio
-                    pg_losses2 = -mb_advantage * torch.clamp(
-                        ratio, 1.0 - args.cliprange, 1.0 + args.cliprange
-                    )
-                    pg_loss_max = torch.max(pg_losses, pg_losses2)
-
-                    stats["logprobs_diff_max"].append(
-                        torch.amax(logprobs_diff.detach() * mb_response_masks).item()
-                    )
-                    stats["logprobs_diff_min"].append(
-                        torch.amin(logprobs_diff.detach() * mb_response_masks).item()
-                    )
-                    stats["zero_pg_loss_count"].append(
-                        (pg_loss_max == 0).detach().sum().item()
-                    )
-
-                pg_loss = self.masked_aggregator(pg_loss_max, mb_response_masks, axis=1)
-                pg_loss = (pg_loss * mb_loss_masks).mean()
-                infos["pg_loss"] = pg_loss.detach()
-                loss = pg_loss
-                if args.beta > 0:
-                    mb_ref_logps = ref_logps[mini_batch_inds]
-                    mb_ref_logps = mb_ref_logps[:, : mb_last_valid_token_pos - 1]
-                    # k3 kl: http://joschu.net/blog/kl-approx.html.
-                    # clamp to avoid numerical instability.
-                    log_ratio = (mb_ref_logps - new_logps).clamp(-40.0, 40.0)
-                    kl3 = torch.expm1(log_ratio) - log_ratio  # expm1 is more stable.
-                    infos["kl3"] = (kl3 * mb_response_masks).detach().sum(1).mean()
-
-                    reg_loss = self.masked_aggregator(kl3, mb_response_masks, axis=1)
-                    reg_loss = args.beta * (reg_loss * mb_loss_masks).mean()
-                    infos["reg_loss"] = reg_loss.detach()
-                    loss += reg_loss
-
-                self.strategy.backward(loss, self.model, self.optimizer)
-
-                if local_grad_step % self.strategy.grad_acc_step == 0:
-                    _st = time.time()
-                    stats["policy_grad_norm"].append(
-                        self.strategy.get_gradient_norm(self.model)
-                    )
-                    stats["get_grad_norm_time"].append(time.time() - _st)
-
-                self.strategy.optimizer_step(self.optimizer, self.model, self.scheduler)
-
-                if self.args.critic_type == "ppo":
-                    # torch.cuda.empty_cache()
-                    # gc.collect()
-
-                    # Critic learning.
-                    value_pred = self.critic(
-                        input_ids=mb_input_ids, attention_mask=mb_att_mask
-                    )[:, :-1]
-
-                    value_pred_clipped = torch.clamp(
-                        value_pred,
-                        mb_values - args.cliprange_value,
-                        mb_values + args.cliprange_value,
-                    )
-                    vf_losses1 = torch.square(value_pred - mb_return)
-                    vf_losses2 = torch.square(value_pred_clipped - mb_return)
-                    vf_loss_max = torch.max(vf_losses1, vf_losses2)
-
-                    vf_loss = 0.5 * self.masked_aggregator(
-                        vf_loss_max, mb_response_masks, axis=1
-                    )
-                    critic_loss = args.vf_coef * (vf_loss * mb_loss_masks).mean()
-
-                    self.strategy.backward(
-                        critic_loss, self.critic, self.critic_optimizer
-                    )
-                    self.strategy.optimizer_step(
-                        self.critic_optimizer, self.critic, self.critic_scheduler
-                    )
-                    infos["critic_loss"] = critic_loss.detach()
-                    infos["vf_clipfrac"] = masked_mean(
-                        (vf_losses2 > vf_losses1).float(), mb_response_masks
-                    ).detach()
-
-                with torch.no_grad():
-                    if not args.reinforce_update:
-                        pg_clipfrac = masked_mean(
-                            (pg_losses2 > pg_losses).float(), mb_response_masks, axis=1
-                        )
-                        stats["pg_clipfrac"].append(pg_clipfrac.mean().min().item())
-
-        infos.update(
-            {f"{k}_nan": torch.tensor(stats[k]).isnan().sum() for k in stats.keys()}
-        )
-        infos.update(
-            {f"{k}_inf": torch.tensor(stats[k]).isinf().sum() for k in stats.keys()}
-        )
-        infos["policy_grad_norm"] = torch.tensor(stats["policy_grad_norm"]).max()
-        infos["get_grad_norm_time"] = torch.tensor(sum(stats["get_grad_norm_time"]))
-        if not args.reinforce_update:
-            infos["logprobs_diff_max"] = torch.tensor(stats["logprobs_diff_max"]).max()
-            infos["logprobs_diff_min"] = torch.tensor(stats["logprobs_diff_min"]).min()
-            infos["zero_pg_loss_count"] = (
-                torch.tensor(stats["zero_pg_loss_count"]).float().mean()
-            )
-            infos["pg_clipfrac"] = torch.tensor(stats["pg_clipfrac"]).mean()
-        infos["adv_mean"] = advantages.mean().cpu()
-        infos["adv_min"] = advantages.min().cpu()
-        infos["adv_max"] = advantages.max().cpu()
-        infos["all_zero_rewards_count"] = (
-            (final_rewards.view(-1, self.args.num_samples).mean(-1) == 0).sum().cpu()
-        )
-        infos["all_one_rewards_count"] = (
-            (final_rewards.view(-1, self.args.num_samples).mean(-1) == 1).sum().cpu()
-        )
-
-        return infos
 
     # Dr. GRPO Modification 2: Remove difficulty bias by just computing the MC advantage without dividing by std:
     def compute_monte_carlo_advantages(self, rewards, response_masks):
@@ -658,18 +355,13 @@ class ZeroMathLearner(PPOLearner):
         values = rewards.view(-1, self.args.num_samples).mean(dim=1)
         values = values.repeat_interleave(self.args.num_samples, dim=0)
         advantages = rewards - values
-        if (self.args.critic_type in ["grpo", "dapo"]) and (
-            not self.args.remove_std_bias
-        ):
+        if (self.args.critic_type == "grpo") and (not self.args.remove_std_bias):
             # Additionally normalize by std.
             std_grouped_rewards = rewards.view(-1, self.args.num_samples).std(dim=1)
             std_grouped_rewards = std_grouped_rewards.repeat_interleave(
                 self.args.num_samples, dim=0
             )
             advantages = advantages / (std_grouped_rewards + 1e-8)
-        if self.args.critic_type == "dapo":
-            # Pre-normalize using summed response length within the group.
-            pass
         return advantages
 
     def _apply_template(self, example):

@@ -39,7 +39,7 @@ class OATArgs:
     num_groups: int = 1
     # Master address and port.
     master_addr: str = "0.0.0.0"
-    master_port: int = 29500
+    master_port: Optional[int] = None
     # Ratio of pre-allocated GPU memory for vLLM.
     vllm_gpu_ratio: float = 0.25
     # Max model length.
