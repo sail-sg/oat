@@ -307,24 +307,6 @@ class ZeroMathActor(PPOActor):
 """
 
 
-def apply_min_p(logits: torch.Tensor, min_p: float):
-    """
-    Filters logits using adaptive probability thresholding.
-    Min-p Sampling for Creative and Coherent LLM Outputs: https://arxiv.org/pdf/2407.01082.
-    """
-    # Convert logits to probability distribution
-    probability_values = torch.nn.functional.softmax(logits, dim=-1)
-    # Calculate maximum probabilities per sequence
-    max_probabilities = torch.amax(probability_values, dim=-1, keepdim=True)
-    # Adjust min_p adaptively
-    adjusted_min_p = min_p * max_probabilities
-    # Identify valid tokens using threshold comparison
-    valid_token_mask = probability_values >= adjusted_min_p
-    # Apply mask using boolean indexing
-    logits[~valid_token_mask] = -float("inf")
-    return logits, valid_token_mask, adjusted_min_p
-
-
 class ZeroMathLearner(PPOLearner):
     def _init(self, args: ZeroMathArgs, actors: List[ActorBase]) -> None:
         super()._init(args, actors)
@@ -342,11 +324,10 @@ class ZeroMathLearner(PPOLearner):
             else masked_mean
         )
         # Ablations
-        if args.critic_type in ["grpo", "ppo"]:
-            if args.remove_len_bias:
-                self.masked_aggregator = functools.partial(
-                    masked_sum, constant_normalizer=args.generate_max_length
-                )
+        if args.critic_type in ["grpo", "ppo"] and args.remove_len_bias:
+            self.masked_aggregator = functools.partial(
+                masked_sum, constant_normalizer=args.generate_max_length
+            )
 
     # Dr. GRPO Modification 2: Remove difficulty bias by just computing the MC advantage without dividing by std:
     def compute_monte_carlo_advantages(self, rewards, response_masks):
