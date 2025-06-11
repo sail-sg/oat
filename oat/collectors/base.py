@@ -44,6 +44,7 @@ class FeedbackCollector:
     ):
         metric = {
             "actor/total_time": actor_time,
+            "actor/num_transitions": len(feedback_data),
         }
         if isinstance(feedback_data[0], PreferenceData):
             metric.update(
@@ -72,7 +73,13 @@ class FeedbackCollector:
                 {
                     "actor/generate_avg_str_len": np.mean(
                         [len(t.response) for t in feedback_data]
-                    )
+                    ),
+                    "actor/response_tok_len": np.mean(
+                        [len(t.response_ids) for t in feedback_data]
+                    ),
+                    "actor/avg_reward": np.mean(
+                        [max(t.rewards) for t in feedback_data]
+                    ),
                 }
             )
         else:
@@ -130,9 +137,7 @@ class FeedbackCollector:
             ]
             if refs is not None:
                 refs = [item for sublist in gathered_refs for item in sublist]
-            rank_lengths = [
-                len(sublist) * self.args.num_samples for sublist in gathered_prompts
-            ]
+
             logging.info(f"rank {rank} invoking step on actor {actor}")
             if self.args.online_evaluation:
                 handle = actor.step(prompts, formatted_prompts, refs)
@@ -144,6 +149,11 @@ class FeedbackCollector:
             logging.info(
                 f"Group Leader Learner {rank} feedback_data size: {len(feedback_data)}"
             )
+            assert len(feedback_data) % len(prompts) == 0
+            sample_per_prompt = len(feedback_data) // len(prompts)
+            rank_lengths = [
+                len(sublist) * sample_per_prompt for sublist in gathered_prompts
+            ]
             assert len(feedback_data) == sum(rank_lengths)
             feedback_data = [
                 feedback_data[i:j]
