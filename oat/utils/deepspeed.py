@@ -69,13 +69,14 @@ def get_train_ds_config(
     max_norm=1.0,
     zpg=8,
     grad_accum_dtype=None,
-    disable_trace_cache=False,
+    overlap_comm=False,
+    use_ds_universal_ckpt=False,
+    deepcompile=False,
+    tensor_parallel_size=1,
 ):
     device = "cpu" if offload else "none"
     zero_opt_dict = {
         "stage": stage,
-        "allgather_bucket_size": 1e9,
-        "reduce_bucket_size": 1e9,
         "offload_param": {"device": device},
         "offload_optimizer": {
             "device": "cpu" if adam_offload else "none",
@@ -92,10 +93,11 @@ def get_train_ds_config(
         "zero_quantized_weights": False,
         "zero_quantized_gradients": False,
     }
-    if disable_trace_cache:
-        zero_opt_dict["stage3_prefetch_bucket_size"] = 0
-        zero_opt_dict["stage3_max_live_parameters"] = 0
-        zero_opt_dict["stage3_max_reuse_distance"] = 0
+    if overlap_comm:
+        zero_opt_dict["overlap_comm"] = True
+        zero_opt_dict["contiguous_gradients"] = True
+    if stage == 3:
+        zero_opt_dict["reduce_scatter"] = True
 
     return {
         "steps_per_print": 100,
@@ -106,8 +108,15 @@ def get_train_ds_config(
         "gradient_clipping": max_norm,
         "prescale_gradients": False,
         "wall_clock_breakdown": False,
-        "data_types": {
-            "grad_accum_dtype": grad_accum_dtype if grad_accum_dtype else "fp32"
+        "data_types": {"grad_accum_dtype": grad_accum_dtype},
+        "checkpoint": {
+            "load_universal": use_ds_universal_ckpt,
+        },
+        "compile": {
+            "deepcompile": deepcompile,
+        },
+        "tensor_parallel": {
+            "autotp_size": tensor_parallel_size,
         },
     }
 
@@ -116,17 +125,26 @@ def get_eval_ds_config(
     offload,
     stage=0,
     bf16=True,
+    deepcompile=False,
+    tensor_parallel_size=1,
 ):
+    # At least for 0.16.6, DeepCompile hasn't support pure inference mode
+    # https://github.com/deepspeedai/DeepSpeed/pull/7225
+    deepcompile = False
+
     zero_opt_dict = {
         "stage": stage,
+        "stage3_max_live_parameters": "auto",
+        "stage3_max_reuse_distance": "auto",
         "stage3_param_persistence_threshold": "auto",
+        "stage3_prefetch_bucket_size": "auto",
         "offload_param": {
             "device": "cpu" if offload else "none",
             "pin_memory": True,
         },
     }
     return {
-        "steps_per_print": 1000,
+        "steps_per_print": 100,
         "zero_optimization": zero_opt_dict,
         "bf16": {
             "enabled": bf16,
@@ -134,6 +152,12 @@ def get_eval_ds_config(
         "gradient_clipping": 1.0,
         "prescale_gradients": False,
         "wall_clock_breakdown": False,
+        "compile": {
+            "deepcompile": deepcompile,
+        },
+        "tensor_parallel": {
+            "autotp_size": tensor_parallel_size,
+        },
     }
 
 
@@ -205,7 +229,7 @@ class DeepspeedStrategy(ABC):
         self.zpg = getattr(args, "zpg", 1)
         self.grad_accum_dtype = getattr(args, "grad_accum_dtype", "fp32")
         # disable_trace_cache
-        self.disable_trace_cache = getattr(args, "disable_trace_cache", False)
+        # self.disable_trace_cache = getattr(args, "disable_trace_cache", False)
         self.time_steps = defaultdict(int)
 
     def set_seed(self, seed: int) -> None:
@@ -354,7 +378,7 @@ class DeepspeedStrategy(ABC):
             max_norm=self.max_norm,
             zpg=self.zpg,
             grad_accum_dtype=self.grad_accum_dtype,
-            disable_trace_cache=self.disable_trace_cache,
+            # disable_trace_cache=self.disable_trace_cache,
         )
 
         ds_config["train_micro_batch_size_per_gpu"] = self.train_batch_size_per_device

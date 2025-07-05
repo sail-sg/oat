@@ -16,11 +16,13 @@
 
 from contextlib import nullcontext
 
+import deepspeed
 import torch
 from torch.autograd.graph import save_on_cpu
 
 from oat.learners.dap import DAPLearner
 from oat.learners.offline_dap import OfflineDAPLearner
+from oat.utils.lm_head import FusedLinear
 
 
 class SFTLearner(DAPLearner):
@@ -56,18 +58,56 @@ class SFTLearner(DAPLearner):
         else:
             logits_to_keep = 0
             slice_indices = slice(None, None)
-        output = model(
-            input_ids, attention_mask=att_masks, logits_to_keep=logits_to_keep
+        model_output = model(
+            input_ids,
+            attention_mask=att_masks,
+            logits_to_keep=logits_to_keep,
+            without_logits=self.args.use_fused_lm_head,
         )
-        all_logits = output["logits"]
-        all_logps, _ = self.get_batch_logps(
-            all_logits,
-            input_ids[:, slice_indices],
-            att_masks[:, slice_indices],
-            prompt_id_lens,
-            average_log_prob=True,
-        )
-        sft_loss = -all_logps.mean()  # average across examples
+        if self.args.use_fused_lm_head:
+            hidden_states = model_output.last_hidden_state[:, :-1]
+            vocab_weights = model.model.lm_head.weight
+
+            fused_linear = FusedLinear(compute_entropy=False)
+            with deepspeed.zero.GatheredParameters(
+                [vocab_weights],
+                fwd_module=fused_linear,
+                enabled=self.strategy.args.zero_stage == 3,
+            ):
+                print(
+                    self.strategy.args.zero_stage == 3,
+                    input_ids.shape,
+                    att_masks.shape,
+                    hidden_states.shape,
+                    vocab_weights.shape,
+                )
+                target_logps, _ent = fused_linear(
+                    hidden_states,
+                    vocab_weights,
+                    input_ids[:, slice_indices][:, 1:],
+                    temperature=1,
+                )
+            del _ent
+            attention_mask = att_masks[:, slice_indices]
+            completion_masks = attention_mask.clone().bool()
+            # mask prompts
+            for mask, source_len in zip(completion_masks, prompt_id_lens):
+                mask[:source_len] = False
+            completion_masks = completion_masks[:, 1:]
+            sum_loss = (target_logps * completion_masks).sum(-1)
+            if not self.args.sft_sum_loss:
+                sum_loss /= completion_masks.sum(-1)
+            sft_loss = -sum_loss.mean()  # average across examples
+        else:
+            all_logits = model_output["logits"]
+            batch_logps, _ = self.get_batch_logps(
+                all_logits,
+                input_ids[:, slice_indices],
+                att_masks[:, slice_indices],
+                prompt_id_lens,
+                average_log_prob=not self.args.sft_sum_loss,
+            )
+            sft_loss = -batch_logps.mean()  # average across examples
         return sft_loss
 
 

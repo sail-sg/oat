@@ -489,6 +489,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             "weight_sync_elapse": self.weight_sync_elapse,
             "vllm_go_sleep_time": self.vllm_go_sleep_time,
             "vllm_wake_up_time": self.vllm_wake_up_time,
+            "vram_allocated": torch.cuda.memory_allocated() / 1024 / 1024,
         }
 
     def get_current_query(self):

@@ -138,10 +138,19 @@ class LLM(nn.Module):
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.Tensor] = None,
         logits_to_keep: Union[int, torch.Tensor] = 0,
+        without_logits: bool = False,
     ) -> torch.Tensor:
         """Returns action log probs"""
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
+
+        if without_logits:
+            # Forward without lm_head
+            return self.model.model(
+                input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+            )
 
         return self.model(
             input_ids,

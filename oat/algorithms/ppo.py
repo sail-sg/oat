@@ -23,6 +23,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+import deepspeed
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -41,6 +42,7 @@ from oat.utils.data import (
     load_data_from_disk_or_hf,
     shard_buffer,
 )
+from oat.utils.lm_head import FusedLinear
 from oat.utils.ops import entropy_from_logits, masked_mean, masked_sum, masked_whiten
 
 """PPO (https://arxiv.org/abs/1707.06347) with optional KL regularization."""
@@ -407,15 +409,14 @@ class PPOLearner(RLLearner):
                 mb_att_mask = mb_att_mask[:, :mb_last_valid_token_pos]
                 mb_response_masks = mb_response_masks[:, : mb_last_valid_token_pos - 1]
 
-                batch_logits = self.model(mb_input_ids, attention_mask=mb_att_mask)[
-                    "logits"
-                ].float()
-                batch_logits /= args.temperature
-                batch_logps = self.get_batch_logps(
-                    batch_logits,
-                    mb_input_ids,
-                    mb_response_masks,
+                batch_logps, _ = self.get_batch_logps(
+                    model=self.model,
+                    input_ids=mb_input_ids,
+                    att_mask=mb_att_mask,
+                    temperature=args.temperature,
+                    compute_entropy=False,
                 )
+                print(batch_logps.dtype)
                 logps[mini_batch_inds, : mb_last_valid_token_pos - 1] = batch_logps
 
         ## 2) Reference.
@@ -425,14 +426,12 @@ class PPOLearner(RLLearner):
                 for i in range(0, len(input_ids), args.train_batch_size_per_device):
                     batch_inds = torch.arange(i, i + args.train_batch_size_per_device)
 
-                    batch_ref_logits = self.ref_model(
-                        input_ids[batch_inds], attention_mask=att_mask[batch_inds]
-                    )["logits"].float()
-                    batch_ref_logits /= args.temperature
-                    batch_ref_logps = self.get_batch_logps(
-                        batch_ref_logits,
-                        input_ids[batch_inds],
-                        response_masks[batch_inds],
+                    batch_ref_logps, _ = self.get_batch_logps(
+                        model=self.ref_model,
+                        input_ids=input_ids[batch_inds],
+                        att_mask=att_mask[batch_inds],
+                        temperature=args.temperature,
+                        compute_entropy=False,
                     )
                     all_ref_logps.append(batch_ref_logps)
             ref_logps = torch.cat(all_ref_logps)
@@ -506,15 +505,14 @@ class PPOLearner(RLLearner):
                     mb_advantage = mb_advantage[:, : mb_last_valid_token_pos - 1]
 
                 # Policy learning.
-                logits = self.model(mb_input_ids, attention_mask=mb_att_mask)[
-                    "logits"
-                ].float()
-                logits /= args.temperature
-                new_logps = self.get_batch_logps(
-                    logits,
-                    mb_input_ids,
-                    mb_response_masks,
+                new_logps, entropy = self.get_batch_logps(
+                    model=self.model,
+                    input_ids=mb_input_ids,
+                    att_mask=mb_att_mask,
+                    temperature=args.temperature,
+                    compute_entropy=True,
                 )
+
                 if args.reinforce_update:
                     pg_loss_max = -mb_advantage * new_logps
                 else:
@@ -555,7 +553,6 @@ class PPOLearner(RLLearner):
                     loss += reg_loss
 
                 with torch.no_grad():
-                    entropy = entropy_from_logits(logits[:, :-1])
                     entropy = masked_mean(entropy, mb_response_masks)
                     infos["entropy"] = entropy
 
@@ -652,24 +649,51 @@ class PPOLearner(RLLearner):
 
     def get_batch_logps(
         self,
-        logits: torch.FloatTensor,
-        labels: torch.LongTensor,
-        completion_masks: torch.LongTensor,
+        model,
+        input_ids,
+        att_mask,
+        temperature: float = 1.0,
+        compute_entropy: bool = False,
     ):
-        assert logits.shape[:-1] == labels.shape
+        if self.args.use_fused_lm_head:
+            model_output = model(
+                input_ids, attention_mask=att_mask, without_logits=True
+            )
+            hidden_states = model_output.last_hidden_state[:, :-1]
+            vocab_weights = model.model.lm_head.weight
+            with deepspeed.zero.GatheredParameters(
+                [vocab_weights], enabled=self.strategy.args.zero_stage == 3
+            ):
+                target_logps, entropy = FusedLinear(compute_entropy=compute_entropy)(
+                    hidden_states,
+                    vocab_weights,
+                    input_ids[:, 1:],
+                    temperature=temperature,
+                )
+                target_logps, entropy = target_logps.to(torch.float32), entropy.to(
+                    torch.float32
+                )
+            if not compute_entropy:
+                entropy = None
+        else:
+            logits = (
+                model(input_ids, attention_mask=att_mask)["logits"].float()
+                / temperature
+            )
+            # orig_dtype = logits.dtype
+            labels = input_ids[:, 1:].clone()
+            logits = logits[:, :-1, :]
+            all_logp = logits.log_softmax(-1)
+            target_logps = torch.gather(
+                all_logp, dim=2, index=labels.unsqueeze(2)
+            ).squeeze(2)
+            entropy = None
+            if compute_entropy:
+                with torch.no_grad():
+                    entropy = entropy_from_logits(logits)
+            # target_logps, entropy = target_logps.to(orig_dtype), entropy.to(orig_dtype)
 
-        labels = labels[:, 1:].clone()
-        logits = logits[:, :-1, :]
-
-        # dummy token; we'll ignore the losses on these tokens later
-        labels[completion_masks == False] = 0
-
-        all_logp = logits.log_softmax(-1)
-        target_logps = torch.gather(all_logp, dim=2, index=labels.unsqueeze(2)).squeeze(
-            2
-        )
-
-        return target_logps
+        return target_logps, entropy
 
 
 class OfflinePPOLearner(OfflineLearner, PPOLearner):
