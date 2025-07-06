@@ -58,6 +58,7 @@ class SFTLearner(DAPLearner):
         else:
             logits_to_keep = 0
             slice_indices = slice(None, None)
+
         model_output = model(
             input_ids,
             attention_mask=att_masks,
@@ -84,12 +85,11 @@ class SFTLearner(DAPLearner):
                 target_logps, _ent = fused_linear(
                     hidden_states,
                     vocab_weights,
-                    input_ids[:, slice_indices][:, 1:],
+                    input_ids[:, 1:],
                     temperature=1,
                 )
             del _ent
-            attention_mask = att_masks[:, slice_indices]
-            completion_masks = attention_mask.clone().bool()
+            completion_masks = att_masks.clone().bool()
             # mask prompts
             for mask, source_len in zip(completion_masks, prompt_id_lens):
                 mask[:source_len] = False

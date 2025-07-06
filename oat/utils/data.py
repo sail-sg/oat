@@ -354,6 +354,24 @@ class PreferenceDataset(Dataset):
         chosen_token["attention_mask"][0][-1] = True
         rejected_token["attention_mask"][0][-1] = True
 
+        # Replace token_ids and mask for dry run
+        if self.strategy.args.dry_run:
+            ctx_len = (
+                self.strategy.args.dry_run_prompt_len
+                + self.strategy.args.dry_run_response_len
+            )
+            chosen_token["input_ids"] = torch.tensor(
+                [chosen_token["input_ids"][0][1]] * ctx_len
+            ).unsqueeze(0)
+            rejected_token["input_ids"] = torch.tensor(
+                [rejected_token["input_ids"][0][1]] * ctx_len
+            ).unsqueeze(0)
+            chosen_token["attention_mask"] = torch.tensor([True] * ctx_len).unsqueeze(0)
+            rejected_token["attention_mask"] = torch.tensor([True] * ctx_len).unsqueeze(
+                0
+            )
+            extra["prompt_ids_lens"] = self.strategy.args.dry_run_prompt_len
+
         return (
             chosen_token["input_ids"],
             chosen_token["attention_mask"],
@@ -399,6 +417,7 @@ class TrajectoryDataset(Dataset):
     ) -> None:
         super().__init__()
         self.tokenizer = tokenizer
+        self.strategy = strategy
 
         # Storing training data.
         self.trajectories = []
@@ -428,7 +447,26 @@ class TrajectoryDataset(Dataset):
         return len(self.trajectories)
 
     def __getitem__(self, idx):
-        return self.trajectories[idx]
+        trajectory = self.trajectories[idx]
+        # Replace token_ids and mask for dry run
+        if self.strategy.args.dry_run:
+            ctx_len = (
+                self.strategy.args.dry_run_prompt_len
+                + self.strategy.args.dry_run_response_len
+            )
+            trajectory["input_ids"] = torch.tensor(
+                [trajectory["input_ids"][1].item()] * ctx_len
+            )
+            trajectory["attention_mask"] = torch.ones(ctx_len)
+            trajectory["action_ids"] = trajectory["input_ids"][
+                : self.strategy.args.dry_run_prompt_len
+            ]
+            trajectory["rewards"] = [0] * self.strategy.args.dry_run_response_len
+            trajectory["loss_mask"] = True
+            trajectory["prompt_ids_lens"] = self.strategy.args.dry_run_prompt_len
+            trajectory["action_logprobs"] = None
+
+        return trajectory
 
     def collate_fn(self, item_list):
         batch_trajectories = {

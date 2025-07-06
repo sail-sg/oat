@@ -92,6 +92,11 @@ class OATArgs:
     len_reg_alpha: float = 0.0
     use_fused_lm_head: bool = True
 
+    # Dry run to test the maximum context length.
+    dry_run: bool = False
+    dry_run_prompt_len: int = 1024
+    dry_run_response_len: int = 1024
+
     # Oracle.
     oracle: str = "pairrm"
     oracle_type: Literal["preference", "reward"] = "preference"
