@@ -299,5 +299,7 @@ def default_args_validation(args: OATArgs):
         gpu_available >= args.gpus
     ), f"{gpu_available} GPUs available, but {args.gpus} required"
     if args.use_fused_lm_head and args.zero_stage == 3:
-        raise ValueError("fused lm head is not supported for ZeRO-3")
+        raise ValueError(
+            "fused lm head is not supported for ZeRO-3, please set --no-use_fused_lm_head"
+        )
     return args
