@@ -1,0 +1,45 @@
+{
+  "os":  "Linux-5.10.0-34-cloud-amd64-x86_64-with-glibc2.31",
+  "python":  "CPython 3.10.18",
+  "startedAt":  "2025-07-05T08:57:50.889788Z",
+  "args":  [
+    "--data_file",
+    "/var/tmp/tmpr291kwps/job.pkl",
+    "--lp_task_id",
+    "0",
+    "--pdb_post_mortem"
+  ],
+  "program":  "/opt/conda/envs/oat-env/lib/python3.10/site-packages/launchpad/nodes/python/process_entry.py",
+  "git":  {
+    "remote":  "https://github.com/abrarelidrisi/oat.git",
+    "commit":  "78d6f95aa1ed040970a4b12cc40b04478c92bf19"
+  },
+  "email":  "abrar.elidrisi@gmail.com",
+  "root":  "/home/asim_aims_ac_za/oat",
+  "host":  "vine",
+  "executable":  "/opt/conda/envs/oat-env/bin/python",
+  "cpu_count":  2,
+  "cpu_count_logical":  4,
+  "gpu":  "Tesla T4",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "158271492096",
+      "used":  "64682082304"
+    }
+  },
+  "memory":  {
+    "total":  "25216352256"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "Tesla T4",
+      "memoryTotal":  "16106127360",
+      "cudaCores":  2560,
+      "architecture":  "Turing",
+      "uuid":  "GPU-9c57c110-974e-f1ee-0718-305295e7a4ef"
+    }
+  ],
+  "cudaVersion":  "12.4",
+  "writerId":  "v078mw35dbyw921powzag60f8eeexsrh"
+}

@@ -18,12 +18,12 @@ import logging
 import time
 from dataclasses import dataclass, field
 from multiprocessing import Pool, TimeoutError
-from typing import Any, List, Literal, Tuple
+from typing import Any, List, Literal, Tuple, Optional
 
 import numpy as np
 import torch
 import tree
-from datasets import concatenate_datasets, load_from_disk
+from datasets import concatenate_datasets, load_from_disk,load_dataset
 from torch.utils.data import DataLoader
 
 from oat.actors.base import ActorBase
@@ -119,7 +119,7 @@ class MATHOracle(RewardOracleBase, PreferenceOracleBase):
         responses: List[str],
         references: List[str],
         batch_size: int = 4,
-    ) -> Tuple[torch.Tensor, Metric]:
+    ) -> Tuple[torch.Tensor, List[Any]]:
         # Parameters used by Oat when using model-based reward, here we don't need.
         del inputs, batch_size
 
@@ -145,7 +145,7 @@ class MATHOracle(RewardOracleBase, PreferenceOracleBase):
         batch_size: int = 4,
         return_probs: bool = False,
         disable_tqdm: bool = False,
-    ) -> Tuple[List[Any], Metric]:
+    ) -> Tuple[np.ndarray, List[Any]]:
         """Facilitates easier evaluation, returning accuracy as winning probability."""
         del batch_size, return_probs, disable_tqdm
         rewards, info = self.get_reward(inputs, candidates_A, candidates_B)
@@ -209,7 +209,7 @@ class ZeroMathActor(PPOActor):
         self,
         prompts: List[str],
         formatted_prompts: List[str],
-        references: List[str] = None,
+        references: Optional[List[str]] = None,
     ) -> List[TrajectoryData]:
         """Main logic for the actor to generate trajectories (reasoning traces)."""
         assert not self.eval_mode
@@ -310,7 +310,8 @@ class ZeroMathActor(PPOActor):
 class ZeroMathLearner(PPOLearner):
     def _init(self, args: ZeroMathArgs, actors: List[ActorBase]) -> None:
         super()._init(args, actors)
-        self.eval_dataset_dict = load_from_disk(args.eval_data)  # TODO: get fro HF.
+        # self.eval_dataset_dict = load_from_disk(args.eval_data)  # TODO: get fro HF.
+        self.eval_dataset_dict = load_dataset(args.eval_data)
         if args.test_split != "all":
             self.eval_dataset_dict = {
                 k: v for k, v in self.eval_dataset_dict.items() if k in args.test_split
@@ -357,7 +358,8 @@ class ZeroMathLearner(PPOLearner):
 
         prompts_data_list = []
         for s, c in zip(data_sources, data_count):
-            prompt_dataset = load_data_from_disk_or_hf(s)
+            # prompt_dataset = load_data_from_disk_or_hf(s)
+            prompt_dataset = load_dataset(s)
             dataset_len = len(prompt_dataset[args.train_split])
             prompts_data = (
                 prompt_dataset[args.train_split]
@@ -390,18 +392,34 @@ class ZeroMathLearner(PPOLearner):
             None  # We use our own `self.eval_dataset_dict`.
         )
 
+    # def eval_dataloader_collate_fn(self, item_list):
+    #     problems = []
+    #     formatted_problems = []
+    #     answers = []
+    #     for item in item_list:
+    #         problems.append(item["problem"])
+    #         formatted_problems.append(
+    #             TEMPLATE_FACTORY[args.prompt_template](item["problem"])
+    #         )
+    #         answers.append(item["answer"])
+    #     return formatted_problems, problems, answers
     def eval_dataloader_collate_fn(self, item_list):
         problems = []
         formatted_problems = []
         answers = []
-        for item in item_list:
-            problems.append(item["problem"])
-            formatted_problems.append(
-                TEMPLATE_FACTORY[args.prompt_template](item["problem"])
-            )
-            answers.append(item["answer"])
-        return formatted_problems, problems, answers
+        # Get the correct keys from the command-line arguments
+        input_key = self.args.eval_input_key or self.args.input_key
+        output_key = self.args.eval_output_key or self.args.output_key
 
+        for item in item_list:
+            # Use the variables instead of hard-coded strings
+            problems.append(item[input_key])
+            formatted_problems.append(
+                TEMPLATE_FACTORY[self.args.prompt_template](item[input_key])
+            )
+            answers.append(item[output_key])
+        return formatted_problems, problems, answers
+    
     def evaluate(self, dataloader, steps):
         # Discard the default eval dataloader, and run eval on multiple benchmarks.
         del dataloader

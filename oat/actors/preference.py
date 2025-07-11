@@ -14,7 +14,7 @@
 
 import logging
 import time
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import torch
@@ -104,7 +104,7 @@ class PreferenceActor(ActorBase):
         self,
         prompts: List[str],
         formatted_prompts: List[str],
-        references: List[str] = None,
+        references: Optional[List[str]] = None,
     ):
         assert self.eval_mode
         candidates = self.generate(formatted_prompts, self.eval_sampling_params)
@@ -154,7 +154,7 @@ class PreferenceActor(ActorBase):
         self,
         prompts: List[str],
         formatted_prompts: List[str],
-        references: List[str] = None,
+        references: Optional[List[str]] = None,
     ) -> List[PreferenceData]:
         assert not self.eval_mode
         info = {}

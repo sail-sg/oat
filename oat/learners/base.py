@@ -259,7 +259,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 init_method=f"tcp://{master_addr}:{master_port}",
                 world_size=world_size,
                 rank=0,
-                group_name="oat",
+                group_name="oat_model_update",
             )
 
             _ = [fut.result() for fut in futs]

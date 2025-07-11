@@ -15,6 +15,44 @@
 * 21/03/2025: We incorporate [Dr. GRPO](https://github.com/sail-sg/understand-r1-zero), which fixes the optimization bias in GRPO.
 * 26/01/2025: We support reinforcement learning with verifiable rewards (RLVR) for math reasoning.
 * 20/10/2024: We open source Oat, an online LLM alignment framework developed during a research project on online LLM exploration ([sample-efficient alignment](https://arxiv.org/pdf/2411.01493)).
+## Get Started
+
+
+Make sure you have uv installed. 
+- to install uv on linux
+```bash
+# On macOS and Linux.
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+then make sure you have python 3.10 installed and run the script below
+```bash
+bash scripts/install_oat.sh
+```
+
+
+### Run cal experiment on math dataset - you must have a gpu with compute capability of 8, an L4 for example
+```bash
+python oat/experiment/cal.py \
+    --gpus 1 \
+    --launch_type local_mt \
+    --collocate \
+    --vllm_sleep \
+    --pretrain EleutherAI/pythia-160m \
+    --prompt_data lkevinzc/gsm8k \
+    --train_split "train" \
+    --input_key question \
+    --output_key answer \
+    --max_train 128 \
+    --use_cal_oracle \
+    --prompt_template qwen_math \
+    --cal_model_name "gemini-1.5-flash-latest" \
+    --cal_few_shot_path "scripts/cal_few_shot_examples.json" \
+    --num_prompt_epoch 1 \
+    --max_sgd_steps 2 \
+    --rollout_batch_size 16 \
+    --train_batch_size_per_device 4
+
+```
 ## Introduction
 
 Oat 🌾 is a simple yet efficient framework for running **online** LLM alignment algorithms. Its key features include:
@@ -103,3 +141,101 @@ We thank the following awesome projects that have contributed to the development
 ## Disclaimer
 
 This is not an official Sea Limited or Garena Online Private Limited product.
+
+
+### Examples
+
+#### Example 1
+```bash
+python -m oat.experiment.run_math_rl \
+    --gpus 1 \
+    --collocate \
+    --vllm_sleep \
+    --pretrain EleutherAI/pythia-160m \
+    --critic_pretrain EleutherAI/pythia-160m \
+    --prompt_data lkevinzc/gsm8k \
+    --train_split "train" \
+    --eval_data lkevinzc/gsm8k \
+    --eval_split "test" \
+    --max_train 128 \
+    --max_eval 32 \
+    --input_key question \
+    --output_key answer \
+    --oracle_type reward \
+    --oracle gsm8k \
+    --prompt_template no \
+    --num_prompt_epoch 1 \
+    --max_sgd_steps 2 \
+    --eval_steps 1 \
+    --save_steps -1 \
+    --rollout_batch_size 16 \
+    --train_batch_size_per_device 4 \
+    --pi_buffer_maxlen_per_device 16 \
+    --bf16
+    
+python oat/experiment/cal.py \
+    --gpus 1 \
+    --launch_type local_mt \
+    --collocate \
+    --vllm_sleep \
+    --pretrain EleutherAI/pythia-160m \
+    --prompt_data lkevinzc/gsm8k \
+    --train_split "train" \
+    --input_key question \
+    --output_key answer \
+    --max_train 128 \
+    --use_cal_oracle \
+    --cal_model_name "gemini-1.5-flash-latest" \
+    --cal_few_shot_path "scripts/cal_few_shot_examples.json" \
+    --num_prompt_epoch 1 \
+    --max_sgd_steps 2 \
+    --rollout_batch_size 16 \
+    --train_batch_size_per_device 4
+    
+```
+#### Example 2
+``` bash
+python -m oat.experiment.run_offline \
+    --gpus 1 \
+    --pretrain EleutherAI/pythia-160m \
+    --algo DPO \
+    --preference_data "HuggingFaceH4/ultrafeedback_binarized" \
+    --train_split "train_prefs" \
+    --max_train 32 \
+    --train_batch_size 4 \
+    --train_batch_size_per_device 1 \
+    --eval_steps -1
+```
+
+
+#### Example 3
+
+``` bash
+python -m oat.experiment.main \
+    --launch_type local_mt \
+    --gpus 1 \
+    --collocate \
+    --vllm_sleep \
+    --pretrain EleutherAI/pythia-160m \
+    --prompt_data lkevinzc/tldr-with-sft-reference \
+    --train_split "train" \
+    --input_key "prompt" \
+    --output_key "pythia-1b-reference" \
+    --max_train 64 \
+    --num_prompt_epoch 1 \
+    --max_sgd_steps 4 \
+    --rollout_batch_size 16 \
+    --train_batch_size_per_device 4 \
+    --pi_buffer_maxlen_per_device 16 \
+    --eval_steps -1
+
+
+```
+
+
+
+### NOTE - Install OpenMPI
+```bash
+sudo apt-get update
+sudo apt-get install -y libopenmpi-dev
+```

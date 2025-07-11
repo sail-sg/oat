@@ -107,14 +107,29 @@ class PPOArgs(OATArgs):
         metadata={"help": "Lambda value for GAE."},
     )
 
+      # --- ADDING THESE THREE NEW CAL RELATED ARGUMENTS HERE ---
+    use_cal_oracle: bool = field(
+        default=False,
+        metadata={"help": "If True, use the custom Credit Assignment LLM Oracle."}
+    )
+    
+    cal_model_name: str = field(
+        default="gemini-1.5-flash-latest",
+        metadata={"help": "The model name for the CAL."}
+    )
+    
+    cal_few_shot_path: str = field(
+        default="scripts/cal_few_shot_examples.json",
+        metadata={"help": "Path to the JSON file with few-shot examples for the CAL."}
 
+    )
 class PPOActor(RewardActor):
 
     def step(
         self,
         prompts: List[str],
         formatted_prompts: List[str],
-        references: List[str] = None,
+        references: Optional[List[str]] = None,
     ) -> List[TrajectoryData]:
         assert not self.eval_mode
         info = {}

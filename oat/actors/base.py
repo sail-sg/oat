@@ -248,3 +248,4 @@ class ActorBase(abc.ABC):
         logging.debug(f"Finished loading in {time.time() - st} seconds")
         if eval:
             self.eval_mode = False
+            
