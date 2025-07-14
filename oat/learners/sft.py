@@ -66,7 +66,7 @@ class SFTLearner(DAPLearner):
             without_logits=self.args.use_fused_lm_head,
         )
         if self.args.use_fused_lm_head:
-            hidden_states = model_output.last_hidden_state[:, :-1]
+            hidden_states = model_output.last_hidden_state[:, slice_indices][:, :-1]
             vocab_weights = model.model.lm_head.weight
 
             fused_linear = FusedLinear(compute_entropy=False)
@@ -85,11 +85,11 @@ class SFTLearner(DAPLearner):
                 target_logps, _ent = fused_linear(
                     hidden_states,
                     vocab_weights,
-                    input_ids[:, 1:],
+                    input_ids[:, slice_indices][:, 1:],
                     temperature=1,
                 )
             del _ent
-            completion_masks = att_masks.clone().bool()
+            completion_masks = att_masks[:, slice_indices].clone().bool()
             # mask prompts
             for mask, source_len in zip(completion_masks, prompt_id_lens):
                 mask[:source_len] = False
