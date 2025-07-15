@@ -52,7 +52,7 @@ class SFTLearner(DAPLearner):
         prompt_id_lens = extra["prompt_ids_lens"]
 
         if len(prompt_id_lens) == 1:
-            logits_to_keep = len(input_ids[0]) - prompt_id_lens[0]
+            logits_to_keep = len(input_ids[0]) - prompt_id_lens[0] + 1
             slice_indices = slice(-logits_to_keep, None)
             prompt_id_lens = [0 for _ in range(len(input_ids))]
         else:
