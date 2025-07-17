@@ -224,9 +224,6 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         strategy.pprint(vars(args))
         strategy.print(f"Update interval = {self.update_interval}")
 
-        if actor_init_futs is not None:
-            _ = [fut.result() for fut in actor_init_futs]
-
         # prepare parameter syncing to actors (reference to openrlhf)
         #
         # For ZeRO-1/2:
@@ -234,6 +231,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         # For ZeRO-3:
         #   1. AllGather parameters to rank 0
         #   2. Broadcast parameters from rank 0 to all vllm engines
+
         logging.info(f"Initializing process group for actors {actors}")
         backend = "gloo" if self.args.collocate else "nccl"
         if actors and strategy.is_group_rank_0():
@@ -242,6 +240,8 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 sock.bind(("", 0))
                 master_port = sock.getsockname()[1]
 
+            if actor_init_futs is not None:
+                _ = [fut.result() for fut in actor_init_futs]
             world_size = len(actors) * args.num_gpus_per_actor + 1
             futs = [
                 actor.futures.init_process_group(
@@ -259,14 +259,14 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 init_method=f"tcp://{master_addr}:{master_port}",
                 world_size=world_size,
                 rank=0,
-                group_name="oat",
+                group_name="oat_model_update",
             )
 
             _ = [fut.result() for fut in futs]
         if len(actors) > 0:
             self._same_actor_group = None
-            dist.barrier()
-            torch.cuda.synchronize()
+            # dist.barrier()
+            # torch.cuda.synchronize()
             assert (
                 len(actors) * args.num_gpus_per_actor * args.num_groups
                 == strategy.world_size
@@ -293,10 +293,10 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             logging.info(
                 f"Same actor group for Learner {strategy.get_rank()}: {self._same_actor_group}"
             )
-            dist.barrier(group=self._same_actor_group)
+            # dist.barrier(group=self._same_actor_group)
 
         logging.info(f"Process group initialized for actors {actors}")
-        dist.barrier()
+        # dist.barrier()
 
     def prepare_data(self, strategy, tokenizer):
         self.prompts_dataset, self.eval_prompts_dataset = get_datasets(

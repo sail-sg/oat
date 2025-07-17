@@ -1,0 +1,363 @@
+_wandb:
+    value:
+        cli_version: 0.21.0
+        e:
+            v078mw35dbyw921powzag60f8eeexsrh:
+                args:
+                    - --data_file
+                    - /var/tmp/tmpr291kwps/job.pkl
+                    - --lp_task_id
+                    - "0"
+                    - --pdb_post_mortem
+                cpu_count: 2
+                cpu_count_logical: 4
+                cudaVersion: "12.4"
+                disk:
+                    /:
+                        total: "158271492096"
+                        used: "64682082304"
+                email: abrar.elidrisi@gmail.com
+                executable: /opt/conda/envs/oat-env/bin/python
+                git:
+                    commit: 78d6f95aa1ed040970a4b12cc40b04478c92bf19
+                    remote: https://github.com/abrarelidrisi/oat.git
+                gpu: Tesla T4
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Turing
+                      cudaCores: 2560
+                      memoryTotal: "16106127360"
+                      name: Tesla T4
+                      uuid: GPU-9c57c110-974e-f1ee-0718-305295e7a4ef
+                host: vine
+                memory:
+                    total: "25216352256"
+                os: Linux-5.10.0-34-cloud-amd64-x86_64-with-glibc2.31
+                program: /opt/conda/envs/oat-env/lib/python3.10/site-packages/launchpad/nodes/python/process_entry.py
+                python: CPython 3.10.18
+                root: /home/asim_aims_ac_za/oat
+                startedAt: "2025-07-05T08:57:50.889788Z"
+                writerId: v078mw35dbyw921powzag60f8eeexsrh
+        m: []
+        python_version: 3.10.18
+        t:
+            "1":
+                - 1
+                - 2
+                - 3
+                - 11
+                - 30
+                - 41
+                - 49
+                - 51
+                - 71
+                - 95
+                - 98
+            "2":
+                - 1
+                - 2
+                - 3
+                - 11
+                - 30
+                - 41
+                - 49
+                - 51
+                - 71
+                - 95
+                - 98
+            "3":
+                - 13
+                - 16
+            "4": 3.10.18
+            "5": 0.21.0
+            "6": 4.51.3
+            "10":
+                - 20
+            "12": 0.21.0
+            "13": linux-x86_64
+activation_offloading:
+    value: false
+adam_beta_1:
+    value: 0.9
+adam_beta_2:
+    value: 0.95
+adam_offload:
+    value: false
+algo:
+    value: SimPO
+apply_chat_template:
+    value: false
+asynchronous:
+    value: false
+best_of_n_eval:
+    value: false
+beta:
+    value: 2
+bf16:
+    value: false
+bon_temperature:
+    value: 0.7
+bt_sample:
+    value: false
+buffer_clear_every:
+    value: .inf
+burn_in_period:
+    value: 5
+collocate:
+    value: true
+critic_learning_rate:
+    value: 9e-06
+critic_max_step_adjustment:
+    value: 1
+critic_pretrain:
+    value: trl-lib/pythia-1b-deduped-tldr-sft
+critic_type:
+    value: drgrpo
+debug:
+    value: false
+disable_fast_tokenizer:
+    value: false
+disable_trace_cache:
+    value: false
+dpo_positive_lambda:
+    value: 0
+dump_all_buffer:
+    value: false
+dump_replay_every:
+    value: -1
+enable_prefix_caching:
+    value: false
+enn_lambda:
+    value: 0.5
+enn_max_try:
+    value: 20
+eval_batch_size:
+    value: 64
+eval_data:
+    value: ""
+eval_generate_max_length:
+    value: 512
+eval_input_key:
+    value: ""
+eval_n:
+    value: 1
+eval_output_key:
+    value: ""
+eval_query_interval:
+    value: -1
+eval_split:
+    value: test
+eval_steps:
+    value: 20
+eval_temperature:
+    value: 0
+eval_top_k:
+    value: -1
+eval_top_p:
+    value: 1
+exp_allow_second_best:
+    value: false
+exp_method:
+    value: "no"
+exp_rnd_sample:
+    value: false
+flash_attn:
+    value: true
+gamma_beta_ratio:
+    value: 0.5
+generate_max_length:
+    value: 512
+gpus:
+    value: 1
+grad_accum_dtype:
+    value: null
+gradient_checkpointing:
+    value: false
+gradient_checkpointing_use_reentrant:
+    value: false
+group_rank:
+    value: 0
+input_key:
+    value: prompt
+l2:
+    value: 0
+label_smoothing:
+    value: 0
+launch_type:
+    value: local_mp
+learn_rm:
+    value: false
+learn_rm_only:
+    value: false
+learner_gpus_per_group:
+    value: 1
+learning_rate:
+    value: 5e-07
+len_reg_alpha:
+    value: 0
+load_in_4bit:
+    value: false
+local_rank:
+    value: 0
+logging_steps:
+    value: 1
+lora_alpha:
+    value: 16
+lora_dropout:
+    value: 0
+lora_rank:
+    value: 0
+lr_scheduler:
+    value: cosine_with_min_lr
+lr_warmup_ratio:
+    value: 0.03
+master_addr:
+    value: 0.0.0.0
+master_port:
+    value: null
+max_epochs:
+    value: 1
+max_eval:
+    value: 1000
+max_model_data_ratio:
+    value: 0.3
+max_model_len:
+    value: null
+max_norm:
+    value: 1
+max_queries:
+    value: 50000
+max_save_mem:
+    value: 1000
+max_save_num:
+    value: 5
+max_sgd_steps:
+    value: .inf
+max_step_adjustment:
+    value: 1
+max_train:
+    value: 50000
+model_data_strategy:
+    value: random
+model_rollout:
+    value: false
+num_bon:
+    value: 1
+num_ensemble:
+    value: 20
+num_gpus_per_actor:
+    value: 1
+num_groups:
+    value: 1
+num_prompt_epoch:
+    value: 1
+num_samples:
+    value: 2
+online_evaluation:
+    value: false
+oracle:
+    value: pairrm
+oracle_batch_size:
+    value: 1
+oracle_type:
+    value: preference
+output_key:
+    value: pythia-1b-reference
+pi_buffer_maxlen_per_device:
+    value: 64
+pretrain:
+    value: trl-lib/pythia-1b-deduped-tldr-sft
+prompt_data:
+    value: lkevinzc/tldr-with-sft-reference
+prompt_max_length:
+    value: 1024
+pure_model_based:
+    value: false
+r_buffer_maxlen:
+    value: 50000
+ref_offload:
+    value: false
+ref_pretrain:
+    value: null
+remote_rm_client_workers:
+    value: 4
+remote_rm_url:
+    value: ""
+resume_dir:
+    value: ""
+resume_tag:
+    value: null
+rm_act_fn:
+    value: relu
+rm_backbone:
+    value: llm-blender/PairRM-hf
+rm_fixed_reg:
+    value: false
+rm_hidden_dim:
+    value: 128
+rm_lr:
+    value: 0.001
+rm_pretrain:
+    value: ""
+rm_sgd_steps:
+    value: 5
+rm_train_budget:
+    value: .inf
+rm_wd:
+    value: 5e-05
+rnd_seed:
+    value: true
+rollout_batch_size:
+    value: 128
+rollout_batch_size_per_device:
+    value: 64
+save_ckpt:
+    value: false
+save_from:
+    value: 0
+save_path:
+    value: ./oat-output
+save_steps:
+    value: -1
+seed:
+    value: 2153207978
+sft_weight:
+    value: 0
+shm_size_mb:
+    value: 5000
+sync_params_every:
+    value: 1
+target_modules:
+    value: all-linear
+temperature:
+    value: 1
+tokenizer:
+    value: ""
+top_k:
+    value: -1
+top_p:
+    value: 1
+train_batch_size:
+    value: 128
+train_batch_size_per_device:
+    value: 8
+train_split:
+    value: train
+use_wb:
+    value: true
+vllm_gpu_ratio:
+    value: 0.25
+vllm_sleep:
+    value: false
+wb_group:
+    value: null
+wb_org:
+    value: null
+wb_project:
+    value: oat-llm
+wb_run_name:
+    value: 1b_pairrm_simpo_online
+zero_stage:
+    value: 2
+zpg:
+    value: 1

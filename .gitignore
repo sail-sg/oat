@@ -5,7 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
-
+.oat/
 # Distribution / packaging
 .Python
 build/
@@ -14,6 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
+math-main/
 lib/
 lib64/
 parts/
@@ -25,7 +26,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+scripts/math_dataset.zip
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.

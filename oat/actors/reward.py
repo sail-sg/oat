@@ -139,3 +139,20 @@ class RewardActor(ActorBase):
 
         handle = self.ipc_client.serialize_ipc(trajectory_data)
         return handle
+
+        # trajectory_data = []
+        # for i in range(len(prompts)):
+        #     trajectory_data.append(
+        #         TrajectoryData(
+        #             prompt=prompts[i],
+        #             prompt_ids=[],  # IDs not available in this actor
+        #             response=all_candidates[i][0] if all_candidates[i] else "",
+        #             response_ids=[],
+        #             response_logprobs=[],
+        #             rewards=rewards[i].tolist(),
+        #             info=info,
+        #         )
+        #     )
+
+        # handle = self.ipc_client.serialize_ipc(trajectory_data)
+        # return handle

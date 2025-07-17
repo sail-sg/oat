@@ -1,49 +1,58 @@
 [build-system]
-requires = ["hatchling"]
+requires      = ["hatchling", "packaging"]
 build-backend = "hatchling.build"
 
 [project]
-name = "oat-llm"
-dynamic = ["version"]
-description = 'Online AlignmenT (OAT) for LLMs.'
-readme = "README.md"
+name            = "oat-llm"
+dynamic         = ["version"]
+description     = "Online AlignmenT (OAT) for LLMs."
+readme          = "README.md"
 requires-python = "~=3.10"
-keywords = ["rlhf", "llm reasoning", "llm", "ai-alignment", "rl", "bandit", "ai", "sample-efficiency"]
+keywords        = [
+  "rlhf", "llm reasoning", "llm", "ai-alignment", "rl",
+  "bandit", "ai", "sample-efficiency"
+]
+
 authors = [
   { name = "Zichen Liu", email = "liuzc@sea.com" },
-  { name = "Xinyi Wan", email = "wanxy@sea.com" },
+  { name = "Xinyi Wan",   email = "wanxy@sea.com" },
   { name = "Changyu Chen", email = "chency@sea.com" },
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
-  "Programming Language :: Python",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
 ]
+
 dependencies = [
   "accelerate",
   "bitsandbytes",
-  "datasets",
+  "editables",
+  "hatchling",
+  "datasets==2.16.0",
   "deepspeed==0.16.8",
   "dm-launchpad[tensorflow]",
   "einops",
-  "flash-attn==2.7.4.post1",
+  "flash-attn>=2.7.4.post1",
   "fire",
   "httpx",
   "jsonlines",
   "loralib",
   "ml_collections",
+  "google-generativeai",
   "mosec",
+  "tree",
   "msgspec",
   "optimum",
   "packaging",
   "peft",
-  "protobuf==3.20.0",
-  "pyarrow>=0.6.1,<12",
+  "mpi4py",
+  "protobuf>=3.20.0",
+  "pyarrow>=11.0.0,<12",
   "python-Levenshtein==0.25.1",
+  "psutil",
   "scipy",
-  "torchmetrics",
+  "torch==2.6.0",
   "tqdm",
   "tyro",
   "transformers==4.51.3",
@@ -54,13 +63,13 @@ dependencies = [
   "wheel",
   "numpy==1.26.4",
   "math-verify[antlr4_13_2]",
-  "pylatexenc==2.10",
+  "pylatexenc==2.10"
 ]
 
 [project.urls]
 Documentation = "https://github.com/sail-sg/oat#readme"
-Issues = "https://github.com/sail-sg/oat/issues"
-Source = "https://github.com/sail-sg/oat"
+Issues        = "https://github.com/sail-sg/oat/issues"
+Source        = "https://github.com/sail-sg/oat"
 
 [project.license]
 text = "Apache-2.0"
