@@ -75,11 +75,25 @@ def apply_r1_distill_qwen_template(question: str):
     return "<｜begin▁of▁sentence｜><｜User｜>" + question + "<｜Assistant｜><think>\n"
 
 
+# def apply_qwen3_template(question: str):
+#     return (
+#         f"<|im_start|>user\nQuestion: {question}"
+#         "\nPlease reason step by step, and put your final answer within \\boxed{}.<|im_end|>\n"
+#         "<|im_start|>assistant\n"
+#     )
+
+def apply_qwen3_template(question: str):
+    return (
+        f"<|im_start|>user\n{question}<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
+
 TEMPLATE_FACTORY = {
     "qwen_math": apply_qwen_math_template,
     "r1": apply_r1_template,
     "no": apply_no_template,
     "r1_distill_qwen": apply_r1_distill_qwen_template,
+    "qwen3": apply_qwen3_template,
 }
 
 
@@ -160,7 +174,7 @@ class MATHOracle(RewardOracleBase, PreferenceOracleBase):
 @dataclass
 class ZeroMathArgs(PPOArgs):
     # Template.
-    prompt_template: Literal["qwen_math", "no", "r1", "r1_distill_qwen"] = field(
+    prompt_template: Literal["qwen_math", "no", "r1", "r1_distill_qwen", "qwen3"] = field(
         default="qwen_math"
     )
     # Evaluation benchmarks used.
@@ -369,7 +383,7 @@ class ZeroMathLearner(PPOLearner):
         prompts_data = concatenate_datasets(prompts_data_list)
 
         # Prepare the data: templated questions & gt final answers.
-        prompts_data = prompts_data.map(lambda x: self._apply_template(x))
+        prompts_data = prompts_data.map(lambda x: self._apply_template(x), load_from_cache_file=False)
 
         self.prompts_dataset = PromptDataset(
             prompts_data,
