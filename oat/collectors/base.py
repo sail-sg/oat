@@ -25,7 +25,7 @@ from torch.distributed import gather_object
 
 from oat.actors.base import ActorBase
 from oat.args import OATArgs
-from oat.types import PreferenceData, TrajectoryData
+from oat.types import PreferenceData, TransitionData
 from oat.utils.ipc import PlasmaShmClient
 
 
@@ -40,7 +40,7 @@ class FeedbackCollector:
     def get_metrics(
         self,
         actor_time: float,
-        feedback_data: List[Union[PreferenceData, TrajectoryData]],
+        feedback_data: List[Union[PreferenceData, TransitionData]],
     ):
         metric = {
             "actor/total_time": actor_time,
@@ -68,7 +68,7 @@ class FeedbackCollector:
                     "actor/chosen_id": np.mean([p.chosen_id for p in feedback_data]),
                 }
             )
-        elif isinstance(feedback_data[0], TrajectoryData):
+        elif isinstance(feedback_data[0], TransitionData):
             metric.update(
                 {
                     "actor/generate_avg_str_len": np.mean(
@@ -143,7 +143,7 @@ class FeedbackCollector:
                 handle = actor.step(prompts, formatted_prompts, refs)
             else:
                 handle = actor.step(prompts, formatted_prompts)
-            feedback_data: List[Union[PreferenceData, TrajectoryData]] = (
+            feedback_data: List[Union[PreferenceData, TransitionData]] = (
                 self.ipc_client.deserialize_ipc(handle)
             )
             logging.info(

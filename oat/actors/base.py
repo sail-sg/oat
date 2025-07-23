@@ -23,7 +23,7 @@ import vllm
 from oat import oracles
 from oat.args import OATArgs
 from oat.rm import model
-from oat.types import PreferenceData, TrajectoryData
+from oat.types import PreferenceData, TransitionData
 from oat.utils.distributed import torch_type_codec
 from oat.utils.ipc import PlasmaShmClient
 
@@ -163,7 +163,7 @@ class ActorBase(abc.ABC):
         prompts: List[str],
         formatted_prompts: List[str],
         references: List[str] = None,
-    ) -> List[Union[PreferenceData, TrajectoryData]]:
+    ) -> List[Union[PreferenceData, TransitionData]]:
         """Step the actor.
 
         Given a prompt x, K responses {y_1, ..., y_K} are sample from the behavior LLM pi_beta,

@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, NamedTuple
+from typing import Any, Dict, List, NamedTuple, Tuple
 
 import torch
 
@@ -53,7 +53,9 @@ class PreferenceData:
 
 
 @dataclass
-class TrajectoryData:
+class TransitionData:
+    """Contains single-turn transition data."""
+
     prompt: str
     prompt_ids: List[int]
     response: str
@@ -61,6 +63,18 @@ class TrajectoryData:
     response_logprobs: List[float]
     rewards: List[float]
     loss_mask: bool = True
+    info: Metric = None
+
+
+@dataclass
+class TrajectoryData:
+    """Contains multi-turn trajectory data."""
+
+    trajectory_ids: List[int]
+    num_turns: int
+    response_token_ranges: List[Tuple[int]]
+    turn_weights: List[float] = None  # weighted SFT / RL
+    messages: List[dict] = None
     info: Metric = None
 
 

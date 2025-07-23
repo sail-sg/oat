@@ -30,8 +30,8 @@ from oat.actors.base import ActorBase
 from oat.args import OATArgs
 from oat.learners.base import LearnerBase
 from oat.model import LLM, Critic
-from oat.types import RLAlgo, TrajectoryData
-from oat.utils.data import TrajectoryDataset
+from oat.types import RLAlgo, TransitionData
+from oat.utils.data import TransitionDataset
 from oat.utils.ops import disable_dropout
 
 
@@ -116,16 +116,16 @@ class RLLearner(LearnerBase):
         else:
             self.critic = None
 
-        self.dataset_builder = TrajectoryDataset
+        self.dataset_builder = TransitionDataset
         dist.barrier()
 
-    def process_feedback_data(self, data_list: List[TrajectoryData]):
+    def process_feedback_data(self, data_list: List[TransitionData]):
         self.query_step += len(data_list)
         for trajectory in data_list:
             self.pi_buffer.append(trajectory)
             if self.args.dump_all_buffer:
                 self.all_buffer.append(
-                    TrajectoryData(
+                    TransitionData(
                         prompt=trajectory.prompt,
                         response=trajectory.response,
                         rewards=trajectory.rewards,

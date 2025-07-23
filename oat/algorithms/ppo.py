@@ -35,9 +35,9 @@ from oat.actors import RewardActor
 from oat.actors.base import ActorBase
 from oat.args import OATArgs
 from oat.learners import OfflineLearner, RLLearner
-from oat.types import TrajectoryData
+from oat.types import TransitionData
 from oat.utils.data import (
-    TrajectoryDataset,
+    TransitionDataset,
     get_datasets,
     load_data_from_disk_or_hf,
     shard_buffer,
@@ -115,7 +115,7 @@ class PPOActor(RewardActor):
         prompts: List[str],
         formatted_prompts: List[str],
         references: List[str] = None,
-    ) -> List[TrajectoryData]:
+    ) -> List[TransitionData]:
         assert not self.eval_mode
         info = {}
         logging.info(f"actor start")
@@ -190,7 +190,7 @@ class PPOActor(RewardActor):
                 dense_rewards = [0] * len(response_ids[i][j])
                 dense_rewards[-1] = reward
                 trajectory_data.append(
-                    TrajectoryData(
+                    TransitionData(
                         prompt=prompt,
                         prompt_ids=prompt_token_ids[i],
                         response=candidates_per_prompt[j],
@@ -210,7 +210,7 @@ class PPOLearner(RLLearner):
     def _init(self, args: PPOArgs, actors: List[ActorBase]) -> None:
         super()._init(args, actors)
         self.args = args
-        self.dataset_builder = TrajectoryDataset
+        self.dataset_builder = TransitionDataset
         self.masked_aggregator = (
             functools.partial(masked_sum, constant_normalizer=args.generate_max_length)
             if args.critic_type == "drgrpo"
@@ -704,7 +704,7 @@ class OfflinePPOLearner(OfflineLearner, PPOLearner):
         all_shards = []
         for item in tqdm(data, desc="loading data", disable=not strategy.is_rank_0()):
             all_shards.append(
-                TrajectoryData(
+                TransitionData(
                     prompt=item[args.input_key],
                     responses=[item[args.output_key]],  # accept a list
                     rewards=[[item[args.reward_key]]],  # accept a list
@@ -712,7 +712,7 @@ class OfflinePPOLearner(OfflineLearner, PPOLearner):
                 )
             )
 
-        self.all_buffer: List[TrajectoryData] = shard_buffer(
+        self.all_buffer: List[TransitionData] = shard_buffer(
             all_shards,
             dist.get_rank(),
             dist.get_world_size(),

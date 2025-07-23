@@ -37,7 +37,7 @@ from oat.actors.base import ActorBase
 from oat.args import OATArgs
 from oat.collectors import AsyncFeedbackCollector, FeedbackCollector
 from oat.model import LLM
-from oat.types import PreferenceData, TrajectoryData
+from oat.types import PreferenceData, TransitionData
 from oat.utils.data import get_datasets, get_tokenizer
 from oat.utils.deepspeed import get_strategy
 from oat.utils.distributed import (
@@ -424,7 +424,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
 
     @abc.abstractmethod
     def process_feedback_data(
-        self, data_list: List[Union[PreferenceData, TrajectoryData]]
+        self, data_list: List[Union[PreferenceData, TransitionData]]
     ):
         """Process collected feedback data, e.g., adding it to buffer."""
 

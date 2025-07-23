@@ -25,7 +25,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from oat.types import PreferenceData, TrajectoryData
+from oat.types import PreferenceData, TrajectoryData, TransitionData
 from oat.utils.deepspeed import DeepspeedStrategy
 
 
@@ -407,10 +407,12 @@ class PreferenceDataset(Dataset):
         return chosen_ids, chosen_masks, rejected_ids, rejected_masks, extras
 
 
-class TrajectoryDataset(Dataset):
+class TransitionDataset(Dataset):
+    """Single-step dataset."""
+
     def __init__(
         self,
-        buffer: List[TrajectoryData],
+        buffer: List[TransitionData],
         tokenizer: Callable,
         strategy: DeepspeedStrategy,
         **_,
@@ -420,21 +422,21 @@ class TrajectoryDataset(Dataset):
         self.strategy = strategy
 
         # Storing training data.
-        self.trajectories = []
+        self.transitions = []
 
         for i in tqdm(
             range(len(buffer)),
             disable=not strategy.is_rank_0(),
-            desc="Constructing ppo dataset",
+            desc="Constructing transition dataset",
         ):
-            trajectory_ids = list(buffer[i].prompt_ids) + list(buffer[i].response_ids)
-            # if tokenizer.eos_token_id not in trajectory_ids:
+            transition_ids = list(buffer[i].prompt_ids) + list(buffer[i].response_ids)
+            # if tokenizer.eos_token_id not in transition_ids:
             #     # TODO: clean up action_logprobs from actor side.
-            #     trajectory_ids.append(tokenizer.eos_token_id)
-            self.trajectories.append(
+            #     transition_ids.append(tokenizer.eos_token_id)
+            self.transitions.append(
                 {
-                    "input_ids": torch.tensor(trajectory_ids),
-                    "attention_mask": torch.ones(len(trajectory_ids)),
+                    "input_ids": torch.tensor(transition_ids),
+                    "attention_mask": torch.ones(len(transition_ids)),
                     "action_ids": buffer[i].response_ids,
                     "rewards": buffer[i].rewards,
                     "loss_mask": buffer[i].loss_mask,
@@ -444,29 +446,29 @@ class TrajectoryDataset(Dataset):
             )
 
     def __len__(self):
-        return len(self.trajectories)
+        return len(self.transitions)
 
     def __getitem__(self, idx):
-        trajectory = self.trajectories[idx]
+        transition = self.transitions[idx]
         # Replace token_ids and mask for dry run
         if self.strategy.args.dry_run:
             ctx_len = (
                 self.strategy.args.dry_run_prompt_len
                 + self.strategy.args.dry_run_response_len
             )
-            trajectory["input_ids"] = torch.tensor(
-                [trajectory["input_ids"][1].item()] * ctx_len
+            transition["input_ids"] = torch.tensor(
+                [transition["input_ids"][1].item()] * ctx_len
             )
-            trajectory["attention_mask"] = torch.ones(ctx_len)
-            trajectory["action_ids"] = trajectory["input_ids"][
+            transition["attention_mask"] = torch.ones(ctx_len)
+            transition["action_ids"] = transition["input_ids"][
                 : self.strategy.args.dry_run_prompt_len
             ]
-            trajectory["rewards"] = [0] * self.strategy.args.dry_run_response_len
-            trajectory["loss_mask"] = True
-            trajectory["prompt_ids_lens"] = self.strategy.args.dry_run_prompt_len
-            trajectory["action_logprobs"] = None
+            transition["rewards"] = [0] * self.strategy.args.dry_run_response_len
+            transition["loss_mask"] = True
+            transition["prompt_ids_lens"] = self.strategy.args.dry_run_prompt_len
+            transition["action_logprobs"] = None
 
-        return trajectory
+        return transition
 
     def collate_fn(self, item_list):
         batch_trajectories = {
@@ -486,6 +488,146 @@ class TrajectoryDataset(Dataset):
             batch_trajectories["prompt_ids_lens"].append(t["prompt_ids_lens"])
             batch_trajectories["action_logprobs"].append(t["action_logprobs"])
             batch_trajectories["action_ids"].append(t["action_ids"])
+
+        padding_side = "right"
+        batch_trajectories["input_ids"] = zero_pad_sequences(
+            batch_trajectories["input_ids"],
+            side=padding_side,
+            value=self.tokenizer.pad_token_id,
+        )
+        batch_trajectories["attention_mask"] = zero_pad_sequences(
+            batch_trajectories["attention_mask"],
+            side=padding_side,
+        )
+        return batch_trajectories
+
+
+def validate_and_process_chat_messages(tokenizer, chat):
+    """
+    Args:
+        chat: List of dicts like [{"role": "user", "content": ...}, {"role": "assistant", "content": ...}, ...]
+
+    Returns:
+        dict with:
+            - 'is_valid': bool
+            - 'num_turns': int
+            - 'response_token_ranges': list of (start_idx, end_idx) tuples
+            - 'tokens': list of token ids
+    """
+
+    if len(chat) % 2 != 0:
+        return {"is_valid": False, "reason": "Odd number of messages"}
+
+    for i in range(0, len(chat), 2):
+        if (
+            chat[i]["role"] not in ["user", "tool"]
+            or chat[i + 1]["role"] != "assistant"
+        ):
+            return {"is_valid": False, "reason": f"Invalid role pairing at turn {i//2}"}
+
+    rendered = tokenizer.apply_chat_template(chat, tokenize=False)
+
+    full_tokens = tokenizer(rendered, add_special_tokens=False)
+    input_ids = full_tokens["input_ids"]
+
+    response_ranges = []
+
+    for i in range(0, len(chat), 2):
+        # locate each turn's context
+        sub_chat_context = chat[: i + 1]
+        rendered_context_up_to_now = tokenizer.apply_chat_template(
+            sub_chat_context, tokenize=False, add_generation_prompt=True
+        )
+        tokens = tokenizer(rendered_context_up_to_now, add_special_tokens=False)[
+            "input_ids"
+        ]
+        start = len(tokens)
+
+        # include each turn's completion
+        sub_chat = chat[: i + 2]
+        rendered_up_to_now = tokenizer.apply_chat_template(sub_chat, tokenize=False)
+        tokens = tokenizer(rendered_up_to_now, add_special_tokens=False)["input_ids"]
+        end = len(tokens)
+
+        response_ranges.append((start, end))
+
+    return {
+        "is_valid": True,
+        "num_turns": len(chat) // 2,
+        "response_ranges": response_ranges,
+        "tokens": input_ids,
+    }
+
+
+class TrajectoryDataset(Dataset):
+    """Multi-step dataset."""
+
+    def __init__(
+        self,
+        buffer: List[TrajectoryData],
+        tokenizer: Callable,
+        strategy: DeepspeedStrategy,
+        **_,
+    ) -> None:
+        super().__init__()
+        self.tokenizer = tokenizer
+        self.strategy = strategy
+
+        # Storing training data.
+        self.trajectories = []
+
+        for i in tqdm(
+            range(len(buffer)),
+            disable=not strategy.is_rank_0(),
+            desc="Constructing trajectory dataset",
+        ):
+            trajectory = buffer[i]
+            if trajectory.messages:
+                output = validate_and_process_chat_messages(
+                    self.tokenizer, trajectory.messages
+                )
+                assert output["is_valid"], output["reason"]
+                trajectory.num_turns = output["num_turns"]
+                trajectory.trajectory_ids = output["tokens"]
+                trajectory.response_token_ranges = output["response_ranges"]
+            else:
+                assert trajectory.num_turns == len(trajectory.response_token_ranges)
+
+            if trajectory.turn_weights is not None:
+                assert trajectory.num_turns == len(trajectory.turn_weights)
+            else:
+                trajectory.turn_weights = [1.0] * trajectory.num_turns
+
+            self.trajectories.append(
+                {
+                    "input_ids": torch.tensor(trajectory.trajectory_ids),
+                    "attention_mask": torch.ones(len(trajectory.trajectory_ids)),
+                    "turn_weights": trajectory.turn_weights,
+                    "response_token_ranges": trajectory.response_token_ranges,
+                }
+            )
+
+    def __len__(self):
+        return len(self.trajectories)
+
+    def __getitem__(self, index):
+        trajectory = self.trajectories[index]
+        return trajectory
+
+    def collate_fn(self, item_list):
+        batch_trajectories = {
+            "input_ids": [],
+            "attention_mask": [],
+            "turn_weights": [],
+            "response_token_ranges": [],
+        }
+        for t in item_list:
+            batch_trajectories["input_ids"].append(t["input_ids"])
+            batch_trajectories["attention_mask"].append(t["attention_mask"])
+            batch_trajectories["turn_weights"].append(t["turn_weights"])
+            batch_trajectories["response_token_ranges"].append(
+                t["response_token_ranges"]
+            )
 
         padding_side = "right"
         batch_trajectories["input_ids"] = zero_pad_sequences(

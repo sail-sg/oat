@@ -23,7 +23,7 @@ from torch.distributed import gather_object
 from oat.actors.base import ActorBase
 from oat.args import OATArgs
 from oat.collectors.base import FeedbackCollector
-from oat.types import PreferenceData, TrajectoryData
+from oat.types import PreferenceData, TransitionData
 from oat.utils.ipc import PlasmaShmClient
 
 
@@ -87,7 +87,7 @@ class AsyncFeedbackCollector(FeedbackCollector):
 
             if self.prev_fut is not None:
                 handle = self.prev_fut.result()
-                feedback_data: List[Union[PreferenceData, TrajectoryData]] = (
+                feedback_data: List[Union[PreferenceData, TransitionData]] = (
                     self.ipc_client.deserialize_ipc(handle)
                 )
                 assert len(feedback_data) % len(prompts) == 0

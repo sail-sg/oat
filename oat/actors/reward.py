@@ -20,7 +20,7 @@ from typing import List
 import tree
 
 from oat.actors.base import ActorBase
-from oat.types import TrajectoryData
+from oat.types import TransitionData
 
 
 class RewardActor(ActorBase):
@@ -91,7 +91,7 @@ class RewardActor(ActorBase):
         prompts: List[str],
         formatted_prompts: List[str],
         references: List[str] = None,
-    ) -> List[TrajectoryData]:
+    ) -> List[TransitionData]:
         assert not self.eval_mode
         info = {}
 
@@ -128,7 +128,7 @@ class RewardActor(ActorBase):
         # info.update({f"oracle/{k}": v for k, v in oracle_info.items()})
 
         trajectory_data = [
-            TrajectoryData(
+            TransitionData(
                 prompt=prompts[i],
                 responses=all_candidates[i],
                 rewards=rewards[i],

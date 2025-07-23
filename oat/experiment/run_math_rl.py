@@ -31,7 +31,7 @@ from oat.algorithms.ppo import PPOActor, PPOArgs, PPOLearner
 from oat.args import default_args_validation, get_default_args
 from oat.interface import get_program, lp
 from oat.oracles.base import PreferenceOracleBase, RewardOracleBase
-from oat.types import Metric, TrajectoryData
+from oat.types import Metric, TransitionData
 from oat.utils.data import PromptDataset, load_data_from_disk_or_hf
 from oat.utils.math_grader import (
     answer_tag_reward_fn,
@@ -210,7 +210,7 @@ class ZeroMathActor(PPOActor):
         prompts: List[str],
         formatted_prompts: List[str],
         references: List[str] = None,
-    ) -> List[TrajectoryData]:
+    ) -> List[TransitionData]:
         """Main logic for the actor to generate trajectories (reasoning traces)."""
         assert not self.eval_mode
         info = {}
@@ -286,7 +286,7 @@ class ZeroMathActor(PPOActor):
                 dense_rewards = [0] * len(response_ids[i][j])
                 dense_rewards[-1] = reward
                 trajectory_data.append(
-                    TrajectoryData(
+                    TransitionData(
                         prompt=prompt,
                         prompt_ids=prompt_token_ids[i],
                         response=candidates_per_prompt[j],
