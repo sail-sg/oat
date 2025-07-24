@@ -26,7 +26,7 @@ conda activate oat
 cd oat
 
 # Hyperparameter ---------------------------------------
-GPUS=1
+GPUS=4
 BATCH_SIZE=128
 BATCH_SIZE_PER_DEVICE=4
 MODEL=Qwen/Qwen2.5-Math-1.5B
