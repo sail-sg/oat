@@ -50,10 +50,11 @@ def test():
         collate_fn=ds.collate_fn,
     )
 
-    data = next(iter(dl))
-    datum = {k: v[0] for k, v in data.items()}
-    for i, (st, end) in enumerate(datum["response_token_ranges"]):
-        print(f"turn-{i}", tokenizer.decode(datum["input_ids"][st:end]))
+    input_ids, attention_mask, turn_weights, response_token_ranges = next(iter(dl))
+    del attention_mask, turn_weights
+    idx = 0
+    for i, (st, end) in enumerate(response_token_ranges[idx]):
+        print(f"turn-{i}", tokenizer.decode(input_ids[idx][st:end]))
 
 
 if __name__ == "__main__":

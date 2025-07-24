@@ -18,13 +18,12 @@ from oat.learners.ntp import NTPLearner, OfflineNTPLearner
 from oat.learners.offline import OfflineLearner
 from oat.learners.offline_dap import OfflineDAPLearner
 from oat.learners.rl import RLLearner
-from oat.learners.sft import OfflineSFTLearner, SFTLearner
+from oat.learners.sft import SFTLearner
 
 __all__ = [
     "DAPLearner",
     "DAPwRMLearner",
     "OfflineDAPLearner",
-    "OfflineSFTLearner",
     "RLLearner",
     "SFTLearner",
     "NTPLearner",

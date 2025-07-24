@@ -17,7 +17,7 @@
 from dataclasses import dataclass
 
 from oat.args import OATArgs, default_args_validation, get_default_args
-from oat.learners import OfflineDAPLearner, OfflineSFTLearner
+from oat.learners import OfflineDAPLearner, SFTLearner
 from oat.types import DAPAlgo
 
 
@@ -25,6 +25,7 @@ from oat.types import DAPAlgo
 class OfflineArgs(OATArgs):
     """Offline DAP from a preference dataset arguments."""
 
+    # Args for preference learning
     preference_data: str = "HuggingFaceH4/ultrafeedback_binarized"
     extract_content: bool = (
         True  # Enable when chosen / reject key contains conversation-style data
@@ -32,11 +33,15 @@ class OfflineArgs(OATArgs):
     prompt_key: str = "prompt"
     chosen_key: str = "chosen"
     rejected_key: str = "rejected"
+
+    # Args for supervised fine-tuning
+    chat_data: str = "robinsmits/ChatAlpaca-20K"
+    msg_key: str = "messages"
     eval_steps: int = -1
 
 
 def main(args):
-    cls = OfflineDAPLearner if args.algo in DAPAlgo else OfflineSFTLearner
+    cls = OfflineDAPLearner if args.algo in DAPAlgo else SFTLearner
 
     def __init__(self, args):
         # Hack to discard DistributedLauncher and use deepspeed launcher.

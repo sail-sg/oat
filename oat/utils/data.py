@@ -615,28 +615,30 @@ class TrajectoryDataset(Dataset):
         return trajectory
 
     def collate_fn(self, item_list):
-        batch_trajectories = {
-            "input_ids": [],
-            "attention_mask": [],
-            "turn_weights": [],
-            "response_token_ranges": [],
-        }
+        input_ids = []
+        attention_mask = []
+        turn_weights = []
+        response_token_ranges = []
+
         for t in item_list:
-            batch_trajectories["input_ids"].append(t["input_ids"])
-            batch_trajectories["attention_mask"].append(t["attention_mask"])
-            batch_trajectories["turn_weights"].append(t["turn_weights"])
-            batch_trajectories["response_token_ranges"].append(
-                t["response_token_ranges"]
-            )
+            input_ids.append(t["input_ids"])
+            attention_mask.append(t["attention_mask"])
+            turn_weights.append(t["turn_weights"])
+            response_token_ranges.append(t["response_token_ranges"])
 
         padding_side = "right"
-        batch_trajectories["input_ids"] = zero_pad_sequences(
-            batch_trajectories["input_ids"],
+        input_ids = zero_pad_sequences(
+            input_ids,
             side=padding_side,
             value=self.tokenizer.pad_token_id,
         )
-        batch_trajectories["attention_mask"] = zero_pad_sequences(
-            batch_trajectories["attention_mask"],
+        attention_mask = zero_pad_sequences(
+            attention_mask,
             side=padding_side,
         )
-        return batch_trajectories
+        return (
+            input_ids,
+            attention_mask,
+            turn_weights,
+            response_token_ranges,
+        )

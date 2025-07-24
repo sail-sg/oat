@@ -108,11 +108,11 @@ class DAPLearner(LearnerBase):
 
     def learn(self, learning_round: int):
         dataset = self.dataset_builder(
-            self.pi_buffer,
-            self.tokenizer,
-            self.args.prompt_max_length,
-            self.args.generate_max_length,
-            self.strategy,
+            buffer=self.pi_buffer,
+            tokenizer=self.tokenizer,
+            prompt_max_length=self.args.prompt_max_length,
+            generate_max_length=self.args.generate_max_length,
+            strategy=self.strategy,
         )
         if learning_round == 1:
             self.strategy.print("Training example")

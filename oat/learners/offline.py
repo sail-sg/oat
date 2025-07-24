@@ -61,7 +61,9 @@ class OfflineLearner(LearnerBase):
                 self.steps += 1
             self.prompt_epoch = p_ep + 1
             # Reorder data for another epoch.
-            random.Random(self.args.seed + p_ep).shuffle(self.all_buffer)
+            random.Random(self.args.seed + p_ep + self.strategy.get_rank()).shuffle(
+                self.all_buffer
+            )
 
         self.eval_and_log(train_info, eval=True, save=True)
 

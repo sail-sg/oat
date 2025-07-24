@@ -23,24 +23,21 @@ deepspeed --module oat.experiment.run_offline \
     --learning_rate 0.000001 \
     --pretrain Qwen/Qwen2.5-Math-1.5B \
     --zero-stage 2 \
-    --preference_data lkevinzc/math-collection \
+    --chat_data "robinsmits/ChatAlpaca-20K" \
     --num_prompt_epoch 2 \
     --no-extract-content \
     --apply_chat_template \
     --max-train 9999999 \
-    --prompt_max_length 2048 \
-    --generate_max_length 4096 \
+    --max_model_len 4096 \
     --save_steps -1 \
-    --prompt_key problem \
-    --chosen_key solution \
-    --rejected_key solution \
-    --train_split train \
+    --train_split test \
     --train_batch_size 32 \
     --train_batch_size_per_device 1 \
     --rollout_batch_size 32 \
     --rollout_batch_size_per_device 32 \
     --pi_buffer_maxlen_per_device 32 \
     --eval_steps -1 \
+    --use_fused_lm_head \
     --use_wb \
     --wb_project oat-dev \
-    --wb_run_name sft-debug-bs1
+    --wb_run_name mt-sft-debug-bs1-use_fuse
