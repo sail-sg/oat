@@ -61,11 +61,10 @@ class SFTLearner(OfflineLearner):
         for item in tqdm(
             data, desc="loading SFT chat data", disable=not strategy.is_rank_0()
         ):
-            if args.apply_chat_template and tokenizer.chat_template:
-                format_prompt = tokenizer.apply_chat_template(
-                    item[args.msg_key],
-                    tokenize=True,
-                )
+            format_prompt = tokenizer.apply_chat_template(
+                item[args.msg_key],
+                tokenize=True,
+            )
             if len(format_prompt) >= args.max_model_len:
                 drop_cnt += 1
                 continue  # drop too long prompts
