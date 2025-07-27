@@ -1070,14 +1070,15 @@ def answer_tag_reward_fn(
         return {"formatted": False}, incorrect_reward  # Unformatted.
 
 
-def answer_tag_reward_fn_for_orz(model_response, gt_answer, fast=False):
+def answer_tag_reward_fn_for_orz(model_response, gt_answer, fast=False,correct_reward=1.0, incorrect_reward=0.0
+                                 ):
     # We are a bit less strict for baselines.
     if "<answer>" in model_response and "</answer>" in model_response:
         model_answer = model_response.split("<answer>")[-1].replace("</answer>", "")
         if "\\boxed" in model_answer:
             model_answer = extract_answer(model_answer)
             if model_answer is None:
-                return {"formatted": True}, 0.0
+                return {"formatted": True}, incorrect_reward
         if isinstance(gt_answer, float) or isinstance(gt_answer, int):
             gt_answer = str(gt_answer)
         if isinstance(gt_answer, str):
@@ -1087,11 +1088,11 @@ def answer_tag_reward_fn_for_orz(model_response, gt_answer, fast=False):
             for gt in gt_answer:
                 is_correct |= grade(model_answer, gt, fast)
         if is_correct:
-            return {"formatted": True}, 1.0  # Correctness reward.
+            return {"formatted": True}, correct_reward  # Correctness reward.
         else:
             return (
                 {"formatted": True},
-                0.0,
+                incorrect_reward,
             )  # Formatted but wrong answer; no format reward to avoid hacking.
     else:
-        return {"formatted": False}, 0.0  # Unformatted.
+        return {"formatted": False}, incorrect_reward  # Unformatted.

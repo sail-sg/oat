@@ -25,6 +25,7 @@ import torch
 import tree
 from datasets import concatenate_datasets, load_from_disk
 from torch.utils.data import DataLoader
+from jinja2 import Template
 
 from oat.actors.base import ActorBase
 from oat.algorithms.ppo import PPOActor, PPOArgs, PPOLearner
@@ -37,6 +38,7 @@ from oat.utils.math_grader import (
     answer_tag_reward_fn,
     boxed_reward_fn,
     r1_distill_qwen_math_reward_fn,
+    answer_tag_reward_fn_for_orz
 )
 from oat.utils.ops import masked_mean, masked_sum
 
@@ -75,11 +77,21 @@ def apply_r1_distill_qwen_template(question: str):
     return "<｜begin▁of▁sentence｜><｜User｜>" + question + "<｜Assistant｜><think>\n"
 
 
+def apply_ours_qwen3_template(question: str):
+    prompt_template_jinja = """\
+<|im_start|>user\n{{question}}\nPlease reason step by step, and put your final answer within <answer> \\boxed{} </answer>.<|im_end|>\n<|im_start|>assistant\n
+"""
+    prompt_instruction_template = Template(prompt_template_jinja)
+    prompt_instruction = prompt_instruction_template.render(question=question)
+    return prompt_instruction
+
+
 TEMPLATE_FACTORY = {
     "qwen_math": apply_qwen_math_template,
     "r1": apply_r1_template,
     "no": apply_no_template,
     "r1_distill_qwen": apply_r1_distill_qwen_template,
+    "ours": apply_ours_qwen3_template,
 }
 
 
@@ -100,6 +112,8 @@ class MATHOracle(RewardOracleBase, PreferenceOracleBase):
             math_reward_fn = answer_tag_reward_fn
         elif template == "r1_distill_qwen":
             math_reward_fn = r1_distill_qwen_math_reward_fn
+        elif template == "ours":
+            math_reward_fn = answer_tag_reward_fn_for_orz
         else:
             math_reward_fn = boxed_reward_fn
 
@@ -160,7 +174,7 @@ class MATHOracle(RewardOracleBase, PreferenceOracleBase):
 @dataclass
 class ZeroMathArgs(PPOArgs):
     # Template.
-    prompt_template: Literal["qwen_math", "no", "r1", "r1_distill_qwen"] = field(
+    prompt_template: Literal["qwen_math", "no", "r1", "r1_distill_qwen", "ours"] = field(
         default="qwen_math"
     )
     # Evaluation benchmarks used.
@@ -198,7 +212,7 @@ class ZeroMathActor(PPOActor):
             self.sampling_params.stop_token_ids = None
             self.eval_sampling_params.stop = None
             self.eval_sampling_params.stop_token_ids = None
-        elif args.prompt_template == "r1":
+        elif args.prompt_template in ["r1", "ours"]:
             # Let's stop when the model completes its answer.
             self.sampling_params.stop = ["</answer>"]
             self.sampling_params.include_stop_str_in_output = True
