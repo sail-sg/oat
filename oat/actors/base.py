@@ -19,6 +19,7 @@ from typing import List, Union
 
 import torch
 import vllm
+from packaging import version
 
 from oat import oracles
 from oat.args import OATArgs
@@ -69,7 +70,7 @@ class ActorBase(abc.ABC):
 
         self.__vllm_version__ = vllm.__version__
 
-        assert self.__vllm_version__ >= "0.8.3", "Upgrade to vLLM >= 0.8.3"
+        assert version.parse(self.__vllm_version__) >= version.parse("0.8.3"), "Upgrade to vLLM >= 0.8.3"
 
         self.vllm_args.update(
             {
