@@ -42,8 +42,8 @@ class DAPwRMLearner(DAPLearner):
             self.r_buffer = UniformBuffer(args.r_buffer_maxlen)
         self.train_rm_info = rm_cls.get_metrics()
 
-    def process_preference_data(self, data_list: List[PreferenceData], raw_prompts):
-        super().process_preference_data(data_list, raw_prompts)
+    def process_feedback_data(self, data_list: List[PreferenceData]):
+        super().process_feedback_data(data_list)
         c_feats = torch.stack([data.chosen_feature for data in data_list]).unsqueeze(
             dim=1
         )
@@ -53,7 +53,7 @@ class DAPwRMLearner(DAPLearner):
         pair_feats = torch.cat([c_feats, r_feats], dim=1).to(
             torch.cuda.current_device()
         )  # (micro_b, 2, d)
-        same_masks = torch.tensor([data.same for data in data_list]).to(
+        same_masks = torch.tensor([not data.loss_mask for data in data_list]).to(
             torch.cuda.current_device()
         )  # (micro_b,)
         model_data_masks = torch.tensor([data.is_model_data for data in data_list]).to(

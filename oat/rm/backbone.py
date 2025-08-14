@@ -31,6 +31,8 @@ def get_cls(model_name: str):
         return DebertaV2PairRM
     if "deberta" in model_name.lower():
         return DebertaV2Vanilla
+    if "skywork" in model_name.lower():
+        return SkyWorkRM
     return PythiaPretrained
 
 
@@ -187,6 +189,21 @@ class PythiaPretrained(CustomBackbone, nn.Module):
         last_pos = attention_mask.sum(-1).long() - 1
         batch_idx = torch.arange(len(encs), device=encs.device)
         return encs[batch_idx, last_pos, :].detach()
+
+
+class SkyWorkRM(PythiaPretrained):
+    def tokenize_pair(self, prompt, candidate, source_max_length=None, max_length=None):
+        del source_max_length, max_length
+        conv = [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": candidate},
+        ]
+        conv_formatted = self.tokenizer.apply_chat_template(conv, tokenize=False)
+        if self.tokenizer.bos_token is not None and conv_formatted.startswith(
+            self.tokenizer.bos_token
+        ):
+            conv_formatted = conv_formatted[len(self.tokenizer.bos_token) :]
+        return self.tokenizer.encode(conv_formatted)
 
 
 class DebertaV2Vanilla(CustomBackbone, nn.Module):

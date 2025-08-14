@@ -14,8 +14,10 @@
 # limitations under the License.
 
 
-URL=http://localhost:8000/compare 
-STATUS_CODE=$(curl -X POST -H "Content-Type: application/octet-stream" --data-binary $'\x82\xacbatch_prompt\x91\xabWho are you\xb0batch_candidates\x91\x92\xa6I am X\xa6I am Y' -o /dev/null -s -w "%{http_code}" "$URL")
+URL=http://localhost:8000/get_feedback 
+STATUS_CODE=$(curl -X POST -H "Content-Type: application/octet-stream" --data-binary $'\x83\xacbatch_prompt\x91\xa2Hi\xaebatch_response\x91\xa3Hey\xb0batch_candidates\x90' -o /dev/null -s -w "%{http_code}" "$URL")
+
+echo $STATUS_CODE
 
 if [ "$STATUS_CODE" -eq 200 ]; then
   echo "Success"

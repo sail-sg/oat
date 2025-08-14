@@ -105,6 +105,7 @@ class OATArgs:
     remote_rm_client_workers: int = 4
     # Sampling a Bernoulli to get the binary feedback instead of thresholding.
     bt_sample: bool = False
+    preference_flip_prob: float = 0
 
     # Critic.
     critic_type: Literal["ppo", "grpo", "drgrpo"] = "drgrpo"
@@ -126,6 +127,7 @@ class OATArgs:
     learn_rm_only: bool = False
     # Load a pre-trained RM.
     rm_pretrain: str = ""
+    encoding_dim: int = 2048
     # Exploration strategies.
     exp_method: Literal[
         "no",

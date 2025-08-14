@@ -199,6 +199,13 @@ class PreferenceActor(ActorBase):
 
         chosen = 1 - binary_feedback
 
+        if self.args.preference_flip_prob > 0:
+            logging.info(
+                f"Flip preference label to inject noise with probability {self.args.preference_flip_prob}"
+            )
+            should_flip = np.random.rand(*chosen.shape) < self.args.preference_flip_prob
+            chosen[should_flip] = 1 - chosen[should_flip]
+
         # Model-based rollout for 1) Dyna - sample efficiency; 2) Better argmax r approximation.
         # (Mixed preference learning: Section 4.2.3 of https://arxiv.org/pdf/2411.01493)
         if self.model_rollout:
@@ -221,7 +228,7 @@ class PreferenceActor(ActorBase):
 
         if self.learning_rm:
             # Measure the internal RM accuracy
-            pred_first_win, _ = self.explorer.compare(results.candidate_features)
+            pred_first_win = self.explorer.compare(results.candidate_features)
             candidate_features = results.candidate_features.cpu()
             correct = pred_first_win == binary_feedback
             info["eval/rm_acc"] = correct.mean().item()

@@ -1070,8 +1070,9 @@ def answer_tag_reward_fn(
         return {"formatted": False}, incorrect_reward  # Unformatted.
 
 
-def answer_tag_reward_fn_for_orz(model_response, gt_answer, fast=False,correct_reward=1.0, incorrect_reward=0.0
-                                 ):
+def answer_tag_reward_fn_for_orz(
+    model_response, gt_answer, fast=False, correct_reward=1.0, incorrect_reward=0.0
+):
     # We are a bit less strict for baselines.
     if "<answer>" in model_response and "</answer>" in model_response:
         model_answer = model_response.split("<answer>")[-1].replace("</answer>", "")

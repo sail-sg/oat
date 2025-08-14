@@ -218,7 +218,7 @@ class ActorBase(abc.ABC):
         assert self.learning_rm
         dtype = torch_type_codec(dtype)
         weight = torch.empty(shape, dtype=dtype, device="cuda")
-        torch.distributed.broadcast(weight, 0, group=self._model_update_group)
+        torch.distributed.broadcast(weight, 0, group=self._model_update_group[0])
         params_dict = dict(self.explorer.reward_model.named_parameters())
         model.default_weight_loader(params_dict[name], weight)
         del weight

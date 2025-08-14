@@ -93,7 +93,7 @@ class Explorer(ExplorerBase):
 
         self.max_length = 2048
         self.source_max_length = 1224
-        self.backbone_bs = 8
+        self.backbone_bs = 1
 
         self.random_sampling = args.exp_rnd_sample
 
