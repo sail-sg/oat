@@ -75,11 +75,20 @@ def apply_r1_distill_qwen_template(question: str):
     return "<｜begin▁of▁sentence｜><｜User｜>" + question + "<｜Assistant｜><think>\n"
 
 
+def apply_qwen3_general_template(question: str) -> str:
+    return (
+        f"<|im_start|>user\nQuestion: {question}"
+        "\nPlease reason step by step, and put your final answer within \\boxed{}.<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
+
+
 TEMPLATE_FACTORY = {
     "qwen_math": apply_qwen_math_template,
     "r1": apply_r1_template,
     "no": apply_no_template,
     "r1_distill_qwen": apply_r1_distill_qwen_template,
+    "qwen3": apply_qwen3_general_template,
 }
 
 
@@ -160,8 +169,8 @@ class MATHOracle(RewardOracleBase, PreferenceOracleBase):
 @dataclass
 class ZeroMathArgs(PPOArgs):
     # Template.
-    prompt_template: Literal["qwen_math", "no", "r1", "r1_distill_qwen"] = field(
-        default="qwen_math"
+    prompt_template: Literal["qwen_math", "no", "r1", "r1_distill_qwen", "qwen3"] = (
+        field(default="qwen_math")
     )
     # Evaluation benchmarks used.
     test_split: str = "all"  # Use "aime,math" to only evaluate on selected benchmarks.
@@ -192,7 +201,7 @@ class ZeroMathActor(PPOActor):
             incorrect_reward=args.incorrect_reward,
         )
 
-        if args.prompt_template in ["qwen_math", "no"]:
+        if args.prompt_template in ["qwen_math", "no", "qwen3"]:
             # These two templates are better used for Qwen models, which can themselves stop generation. Hence we unset all external stopping conditions.
             self.sampling_params.stop = None
             self.sampling_params.stop_token_ids = None

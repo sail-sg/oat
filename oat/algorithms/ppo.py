@@ -86,6 +86,12 @@ class PPOArgs(OATArgs):
         default=1.0,
         metadata={"help": "Scaling the environment rewards."},
     )
+    tis_c: Optional[float] = field(
+        default=None,
+        metadata={
+            "help": "Truncated importance sampling for vllm/deepspeed precision mismatch."
+        },
+    )
     cliprange: float = field(
         default=0.2,
         metadata={"help": "Clip range."},
@@ -363,9 +369,9 @@ class PPOLearner(RLLearner):
             .reshape(-1, 1)
         ).float() * args.reward_scale
         prompt_id_lens = trajectory["prompt_ids_lens"]
-        # action_logprobs = [
-        #     torch.tensor(lp).to(device) for lp in trajectory["action_logprobs"]
-        # ]
+        actor_logprobs = [
+            torch.tensor(lp).to(device) for lp in trajectory["action_logprobs"]
+        ]
         loss_masks = torch.tensor(trajectory["loss_masks"]).float().to(device)
         completion_masks = self.get_completion_mask(att_mask, prompt_id_lens)
         response_masks = completion_masks[:, 1:]
@@ -382,9 +388,9 @@ class PPOLearner(RLLearner):
 
         # Forward old models.
         ## 1) (Option 1) Policy log probabilities are directly from actors (vLLM).
-        # logps = torch.zeros_like(response_masks).float()
-        # for i in range(len(logps)):
-        #     logps[i, torch.where(response_masks[i])[0]] = action_logprobs[i]
+        actor_logps = torch.zeros_like(response_masks).float()
+        for i in range(len(actor_logps)):
+            actor_logps[i, torch.where(response_masks[i])[0]] = actor_logprobs[i]
         ## 2) (Option 2) Reevaluate log probabilities using learner model.
         logps = torch.zeros(
             input_ids.shape[0], input_ids.shape[1] - 1, device=input_ids.device
@@ -471,6 +477,7 @@ class PPOLearner(RLLearner):
                 mb_att_mask = att_mask[mini_batch_inds]
                 mb_response_masks = response_masks[mini_batch_inds]
                 mb_logps = logps[mini_batch_inds]
+                mb_actor_logps = actor_logps[mini_batch_inds]
                 mb_loss_masks = loss_masks[mini_batch_inds]
 
                 # Remove unnecessary padding introduced by the large PPO batch.
@@ -498,6 +505,7 @@ class PPOLearner(RLLearner):
                 mb_att_mask = mb_att_mask[:, :mb_last_valid_token_pos]
                 mb_response_masks = mb_response_masks[:, : mb_last_valid_token_pos - 1]
                 mb_logps = mb_logps[:, : mb_last_valid_token_pos - 1]
+                mb_actor_logps = mb_actor_logps[:, : mb_last_valid_token_pos - 1]
 
                 if self.args.critic_type == "ppo":
                     mb_return = returns[mini_batch_inds, : mb_last_valid_token_pos - 1]
@@ -523,6 +531,12 @@ class PPOLearner(RLLearner):
                         ratio, 1.0 - args.cliprange, 1.0 + args.cliprange
                     )
                     pg_loss_max = torch.max(pg_losses, pg_losses2)
+
+                    if self.args.tis_c is not None:
+                        tis = torch.exp(mb_logps - mb_actor_logps).clamp(
+                            max=self.args.tis_c
+                        )
+                        pg_loss_max *= tis
 
                     stats["logprobs_diff_max"].append(
                         torch.amax(logprobs_diff.detach() * mb_response_masks).item()

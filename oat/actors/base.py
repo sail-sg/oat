@@ -70,7 +70,9 @@ class ActorBase(abc.ABC):
 
         self.__vllm_version__ = vllm.__version__
 
-        assert version.parse(self.__vllm_version__) >= version.parse("0.8.3"), "Upgrade to vLLM >= 0.8.3"
+        assert version.parse(self.__vllm_version__) >= version.parse(
+            "0.8.3"
+        ), "Upgrade to vLLM >= 0.8.3"
 
         self.vllm_args.update(
             {
