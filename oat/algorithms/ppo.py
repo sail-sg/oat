@@ -87,7 +87,7 @@ class PPOArgs(OATArgs):
         metadata={"help": "Scaling the environment rewards."},
     )
     tis_c: Optional[float] = field(
-        default=None,
+        default=2.0,
         metadata={
             "help": "Truncated importance sampling for vllm/deepspeed precision mismatch."
         },
