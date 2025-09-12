@@ -39,6 +39,36 @@ class SFTAlgo(Enum):
 
 
 @dataclass
+class Transition:
+    obs: str
+    action: str
+    rewards: float
+    done: bool
+
+    prompt: str
+    prompt_ids: list
+    response: str
+    response_ids: list
+    response_logprobs: list
+
+    response_is_truncated: bool
+    action_is_formatted: bool
+
+    loss_mask: bool = True
+    info: Metric = None
+
+    def format(self):
+        return {
+            "obs": self.obs,
+            "action": self.action,
+            "reward": self.rewards,
+            "done": int(self.done),
+            "prompt": self.prompt,
+            "response": self.response,
+        }
+
+
+@dataclass
 class PreferenceData:
     prompt: str
     chosen_response: str

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Fused lm head to optimize memory usage. Adapted from https://github.com/volcengine/verl."""
+"""Fused lm head to optimize memory usage. Adapted from https://github.com/volcengine/verl."""
 # Copyright 2024 Bytedance Ltd. and/or its affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

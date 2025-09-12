@@ -422,7 +422,6 @@ class PPOLearner(RLLearner):
                     temperature=args.temperature,
                     compute_entropy=False,
                 )
-                print(batch_logps.dtype)
                 logps[mini_batch_inds, : mb_last_valid_token_pos - 1] = batch_logps
 
         ## 2) Reference.

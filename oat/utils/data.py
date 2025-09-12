@@ -437,7 +437,7 @@ class TransitionDataset(Dataset):
                 {
                     "input_ids": torch.tensor(transition_ids),
                     "attention_mask": torch.ones(len(transition_ids)),
-                    "action_ids": buffer[i].response_ids,
+                    "state_ids": torch.tensor(buffer[i].prompt_ids),
                     "rewards": buffer[i].rewards,
                     "loss_mask": buffer[i].loss_mask,
                     "prompt_ids_lens": len(buffer[i].prompt_ids),
@@ -460,7 +460,7 @@ class TransitionDataset(Dataset):
                 [transition["input_ids"][1].item()] * ctx_len
             )
             transition["attention_mask"] = torch.ones(ctx_len)
-            transition["action_ids"] = transition["input_ids"][
+            transition["state_ids"] = transition["input_ids"][
                 : self.strategy.args.dry_run_prompt_len
             ]
             transition["rewards"] = [0] * self.strategy.args.dry_run_response_len
@@ -473,7 +473,7 @@ class TransitionDataset(Dataset):
     def collate_fn(self, item_list):
         batch_trajectories = {
             "input_ids": [],
-            "action_ids": [],
+            "state_ids": [],
             "attention_mask": [],
             "rewards": [],
             "loss_masks": [],
@@ -487,7 +487,7 @@ class TransitionDataset(Dataset):
             batch_trajectories["loss_masks"].append(t["loss_mask"])
             batch_trajectories["prompt_ids_lens"].append(t["prompt_ids_lens"])
             batch_trajectories["action_logprobs"].append(t["action_logprobs"])
-            batch_trajectories["action_ids"].append(t["action_ids"])
+            batch_trajectories["state_ids"].append(t["state_ids"])
 
         padding_side = "right"
         batch_trajectories["input_ids"] = zero_pad_sequences(
