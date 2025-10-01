@@ -60,6 +60,7 @@ Research projects that are built (or integrated) with Oat 🌾:
 * [Understanding R1-Zero-Like Training: A Critical Perspective](https://github.com/sail-sg/understand-r1-zero)
 * [VeriFree: Reinforcing General Reasoning without Verifiers](https://github.com/sail-sg/VeriFree)
 * [SPIRAL: Self-Play on Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning](https://github.com/spiral-rl/spiral)
+* [GEM: A Gym for Agentic LLMs](https://github.com/axon-rl/gem)
 
 <!-- ## Benchmarking
 The benchmarking compares oat with the online DPO implementation from [huggingface/trl](https://huggingface.co/docs/trl/main/en/online_dpo_trainer). Below, we outline the configurations used for oat and present the benchmarking results. Notably, oat 🌾 achieves up to **2.5x** computational efficiency compared to trl 🤗.

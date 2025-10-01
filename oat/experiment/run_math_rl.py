@@ -23,7 +23,7 @@ from typing import Any, List, Literal, Tuple
 import numpy as np
 import torch
 import tree
-from datasets import concatenate_datasets, load_from_disk
+from datasets import concatenate_datasets
 from torch.utils.data import DataLoader
 
 from oat.actors.base import ActorBase
@@ -319,7 +319,7 @@ class ZeroMathActor(PPOActor):
 class ZeroMathLearner(PPOLearner):
     def _init(self, args: ZeroMathArgs, actors: List[ActorBase]) -> None:
         super()._init(args, actors)
-        self.eval_dataset_dict = load_from_disk(args.eval_data)  # TODO: get fro HF.
+        self.eval_dataset_dict = load_data_from_disk_or_hf(args.eval_data)
         if args.test_split != "all":
             self.eval_dataset_dict = {
                 k: v for k, v in self.eval_dataset_dict.items() if k in args.test_split

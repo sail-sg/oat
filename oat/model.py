@@ -86,7 +86,8 @@ class LLM(nn.Module):
                 )
 
             # LoRA
-            if lora_rank > 0:
+            self.use_lora = lora_rank > 0
+            if self.use_lora:
                 # https://github.com/huggingface/peft/issues/137
                 self.model.enable_input_require_grads()
                 lora_config = LoraConfig(
@@ -146,7 +147,11 @@ class LLM(nn.Module):
 
         if without_logits:
             # Forward without lm_head
-            return self.model.model(
+            if self.use_lora:
+                model_unwrap = self.model.module.base_model
+            else:
+                model_unwrap = self
+            return model_unwrap.model.model(
                 input_ids,
                 attention_mask=attention_mask,
                 position_ids=position_ids,

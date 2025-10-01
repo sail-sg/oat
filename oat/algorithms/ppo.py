@@ -673,7 +673,13 @@ class PPOLearner(RLLearner):
                 input_ids, attention_mask=att_mask, without_logits=True
             )
             hidden_states = model_output.last_hidden_state[:, :-1]
-            vocab_weights = model.model.lm_head.weight
+
+            if self.args.lora_rank > 0:
+                model_unwrap = model.model.module.base_model
+            else:
+                model_unwrap = model
+
+            vocab_weights = model_unwrap.model.lm_head.weight
             with deepspeed.zero.GatheredParameters(
                 [vocab_weights], enabled=self.strategy.args.zero_stage == 3
             ):

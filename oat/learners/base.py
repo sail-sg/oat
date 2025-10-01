@@ -712,10 +712,38 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 actor.futures.reset_prefix_cache() for actor in self.actors
             ]
 
-        model = self.model.model.module
-        count, num_params = 0, len(list(model.named_parameters()))
+        if self.args.lora_rank > 0:
+            # For LoRA training, merge the model before broadcasting to actors.
+            # TODO: Only broadcasting the LoRA weights.
+            # Reference to https://github.com/shangshang-wang/Tina.
+            unwrapped_model = self.strategy._unwrap_model(self.model)
+            unwrapped_model.merge_adapter()
+            state_dict = unwrapped_model.state_dict()
+            # Remove base_model and base_layer prefixes
+            state_dict = {
+                k.removeprefix("base_model.model.").replace(".base_layer", ""): v
+                for k, v in state_dict.items()
+            }
+            # Remove values with adapter prefix (example: "_lora")
+            state_dict = {
+                k: v for k, v in state_dict.items() if unwrapped_model.prefix not in k
+            }
+            # When module to save, remove its prefix and discard the original module
+            state_dict = {
+                k.replace("modules_to_save.default.", ""): v
+                for k, v in state_dict.items()
+                if "original_module" not in k
+            }
+            state_dict_iterable = state_dict.items()
+            num_params = len(state_dict_iterable)
+        else:
+            model = self.model.model.module
+            state_dict_iterable = model.named_parameters()
+            num_params = len(list(model.named_parameters()))
+
         torch.cuda.empty_cache()
-        for name, param in model.named_parameters():
+        count = 0
+        for name, param in state_dict_iterable:
             count += 1  # empty_cache at last param
 
             # Fire all vllm engines for broadcast
@@ -747,6 +775,11 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             _ = [fut.result() for fut in reset_prefix_cache_futs]
         torch.cuda.empty_cache()
         dist.barrier()
+
+        if self.args.lora_rank > 0:
+            # Unmerge the adapter to restore the model to its original state.
+            unwrapped_model.unmerge_adapter()
+
         logging.info(f"weights @version={self.pi_beta_version} broadcasted to actors")
 
     def _post_learning(self):
