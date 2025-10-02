@@ -20,6 +20,7 @@ GPUS=8
 BATCH_SIZE=128
 BATCH_SIZE_PER_DEVICE=1
 ROLLOUT_PER_PROMPT=8
+MAX_GENERATION=4096
 MODEL=deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
 PROMPT_TEMPLATE=r1_distill_qwen
 DATASET=lkevinzc/math-12k
@@ -58,7 +59,7 @@ python -m oat.experiment.run_math_rl \
     --num_samples $ROLLOUT_PER_PROMPT \
     --temperature 1 \
     --top_p 1 \
-    --generate_max_length 4096 \
+    --generate_max_length $MAX_GENERATION \
     --save_steps -1 \
     --train_batch_size $BATCH_SIZE \
     --train_batch_size_per_device $BATCH_SIZE_PER_DEVICE \
@@ -70,7 +71,7 @@ python -m oat.experiment.run_math_rl \
     --eval_temperature 0.6 \
     --eval_top_p 0.95 \
     --eval_n 32 \
-    --eval_generate_max_length 4096 \
+    --eval_generate_max_length $MAX_GENERATION \
     --eval_data lkevinzc/math-eval \
     --test_split aime \
     --eval_input_key input \
@@ -78,8 +79,5 @@ python -m oat.experiment.run_math_rl \
     --wb-run-name RLVR-DrGRPO-$(basename "$MODEL")-$(basename "$DATASET")-LoraRank$1
 
 # 4. Commands to reproduce experiments:
-# Full finetuning: bash examples/math_rl_lora.sh 0 0.000001
-# LoRA with rank-1: bash examples/math_rl_lora.sh 1 0.00005
-# LoRA with rank-4: bash examples/math_rl_lora.sh 4 0.00005
-# LoRA with rank-16: bash examples/math_rl_lora.sh 16 0.00005
-# LoRA with rank-32: bash examples/math_rl_lora.sh 32 0.00005
+# bash examples/math_rl_lora.sh 0 0.000001 # Full fine-tuning with LR=1e-6
+# bash examples/math_rl_lora.sh 1 0.00005 # LoRA with rank-1 with LR=5e-5
