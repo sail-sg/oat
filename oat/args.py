@@ -251,6 +251,7 @@ class OATArgs:
         ]
     )
     lora_dropout: float = 0
+    lora_sync_only: bool = False # sync lora weight only without merging
     gradient_checkpointing_use_reentrant: bool = False
 
     apply_chat_template: bool = False
