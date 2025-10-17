@@ -650,7 +650,7 @@ class PPOLearner(RLLearner):
             infos["logprobs_diff_min"] = torch.tensor(stats["logprobs_diff_min"]).min()
             infos["sampler_learner_diff_max"] = torch.tensor(
                 stats["sampler_learner_diff_max"]
-            ).min()
+            ).max()
             infos["sampler_learner_diff_min"] = torch.tensor(
                 stats["sampler_learner_diff_min"]
             ).min()
