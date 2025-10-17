@@ -14,6 +14,7 @@
 
 # Reference to https://github.com/OpenRLHF/OpenRLHF.
 
+import gc
 import logging
 import os
 import random
@@ -503,32 +504,26 @@ class DeepspeedStrategy(ABC):
         model_to_save = self._unwrap_model(model)
 
         # gather parameters
-        output_state_dict = {}
-        for k, v in model_to_save.named_parameters():
-            # only gather z3 params
-            params_to_fetch = _z3_params_to_fetch([v])
-            with deepspeed.zero.GatheredParameters(
-                params_to_fetch, enabled=len(params_to_fetch) > 0
-            ):
-                vv = v.data.cpu()
-                if self.is_rank_0():
-                    output_state_dict[k] = vv
+        if self.args.zero_stage > 2:
+            output_state_dict = (
+                model.model._consolidated_16bit_state_dict()
+                if isinstance(model, LLM)
+                else model._consolidated_16bit_state_dict()
+            )
+        else:
+            from deepspeed.checkpoint.utils import clone_tensors_for_torch_save
+
+            output_state_dict = clone_tensors_for_torch_save(model_to_save.state_dict())
 
         if self.is_rank_0():
-            state_dict = model_to_save.state_dict()
-
-            # copy named_buffers with `persistent=True`
-            for k, v in model_to_save.named_buffers():
-                if k not in state_dict:
-                    continue
-                vv = v.data.cpu()
-                output_state_dict[k] = vv
-
-            state_dict_keys = set(state_dict.keys())
+            state_dict_keys = set(model_to_save.state_dict().keys())
             output_state_dict_keys = set(output_state_dict.keys())
 
             # corner case for tie_word_embeddings, such as Qwen2-0.5B
-            if getattr(model_to_save.config, "tie_word_embeddings", False):
+            if (
+                getattr(model_to_save.config, "tie_word_embeddings", False)
+                and "lm_head.weight" in state_dict_keys
+            ):
                 state_dict_keys.remove("lm_head.weight")
 
             assert state_dict_keys.issubset(
@@ -543,6 +538,9 @@ class DeepspeedStrategy(ABC):
                         get_peft_model_state_dict(model_to_save, output_state_dict),
                         os.path.join(save_dir, "adapter_model.bin"),
                     )
+                    filename = os.path.join(save_dir, "adapter_model.safetensors")
+                    if os.path.exists(filename):
+                        os.remove(filename)
             else:
                 # save model
                 model_to_save.save_pretrained(
@@ -555,15 +553,11 @@ class DeepspeedStrategy(ABC):
             # save tokenizer
             tokenizer.save_pretrained(save_dir)
 
-            # for models not in AutoModel, copy python module files
-            train_from_model_path = model_to_save.config._name_or_path
-            if os.path.exists(train_from_model_path):
-                for filename in os.listdir(train_from_model_path):
-                    if filename.endswith(".py"):
-                        shutil.copy(
-                            os.path.join(train_from_model_path, filename),
-                            os.path.join(save_dir, filename),
-                        )
+        del output_state_dict
+
+        gc.collect()
+        dist.barrier()
+        torch.cuda.synchronize()
 
     def all_reduce(self, data, op="mean"):
         assert op in ("mean", "max", "sum")

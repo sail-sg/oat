@@ -81,6 +81,9 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.save_path = os.path.join(args.save_path, exp_name)
         if strategy.is_rank_0():
             os.makedirs(self.save_path, exist_ok=True)
+            if args.lora_rank > 0:
+                self.lora_dir = os.path.join(self.save_path, "lora")
+                os.makedirs(self.lora_dir, exist_ok=True)
 
         # Init actors async.
         actor_init_futs = None
@@ -713,70 +716,88 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             ]
 
         if self.args.lora_rank > 0:
-            # For LoRA training, merge the model before broadcasting to actors.
-            # TODO: Only broadcasting the LoRA weights.
-            # Reference to https://github.com/shangshang-wang/Tina.
-            unwrapped_model = self.strategy._unwrap_model(self.model)
-            unwrapped_model.merge_adapter()
-            state_dict = unwrapped_model.state_dict()
-            # Remove base_model and base_layer prefixes
-            state_dict = {
-                k.removeprefix("base_model.model.").replace(".base_layer", ""): v
-                for k, v in state_dict.items()
-            }
-            # Remove values with adapter prefix (example: "_lora")
-            state_dict = {
-                k: v for k, v in state_dict.items() if unwrapped_model.prefix not in k
-            }
-            # When module to save, remove its prefix and discard the original module
-            state_dict = {
-                k.replace("modules_to_save.default.", ""): v
-                for k, v in state_dict.items()
-                if "original_module" not in k
-            }
-            state_dict_iterable = state_dict.items()
-            num_params = len(state_dict_iterable)
+            if not self.args.lora_sync_only:
+                # For LoRA training, merge the model before broadcasting to actors.
+                # TODO: Only broadcasting the LoRA weights.
+                # Reference to https://github.com/shangshang-wang/Tina.
+                unwrapped_model = self.strategy._unwrap_model(self.model)
+                unwrapped_model.merge_adapter()
+                state_dict = unwrapped_model.state_dict()
+                # Remove base_model and base_layer prefixes
+                state_dict = {
+                    k.removeprefix("base_model.model.").replace(".base_layer", ""): v
+                    for k, v in state_dict.items()
+                }
+                # Remove values with adapter prefix (example: "_lora")
+                state_dict = {
+                    k: v
+                    for k, v in state_dict.items()
+                    if unwrapped_model.prefix not in k
+                }
+                # When module to save, remove its prefix and discard the original module
+                state_dict = {
+                    k.replace("modules_to_save.default.", ""): v
+                    for k, v in state_dict.items()
+                    if "original_module" not in k
+                }
+                state_dict_iterable = state_dict.items()
+                num_params = len(state_dict_iterable)
+            else:
+                # For LoRA training, we transfer the lora weights to actors via disk.
+                lora_dir = os.path.join(self.save_path, "lora")
+                model_id = "step_{:09d}".format(self.steps)
+                self.strategy.save_model(
+                    self.model,
+                    self.tokenizer,
+                    lora_dir,
+                    tag=model_id,
+                    max_num=1,  # for sync training only
+                )
+                lora_path = os.path.join(lora_dir, model_id)
+                _ = [actor.update_lora_path(lora_path) for actor in self.actors]
         else:
+            # For full fine-tuning, we transfer the whole model via ipc.
             model = self.model.model.module
             state_dict_iterable = model.named_parameters()
             num_params = len(list(model.named_parameters()))
 
-        torch.cuda.empty_cache()
-        count = 0
-        for name, param in state_dict_iterable:
-            count += 1  # empty_cache at last param
+        if self.args.lora_rank == 0 or not self.args.lora_sync_only:
+            torch.cuda.empty_cache()
+            count = 0
+            for name, param in state_dict_iterable:
+                count += 1  # empty_cache at last param
 
-            # Fire all vllm engines for broadcast
-            if self.strategy.is_group_rank_0():
-                shape = (
-                    param.shape
-                    if self.strategy.args.zero_stage != 3
-                    else param.ds_shape
-                )
-                futs = [
-                    actor.futures.update_weight(
-                        name,
-                        dtype=torch_type_codec(param.dtype),
-                        shape=shape,
-                        empty_cache=count == num_params,
-                    )
-                    for actor in self.actors
-                ]
-
-            # For ZeRO-3, allgather sharded parameter and broadcast to all vllm engines by rank 0
-            with deepspeed.zero.GatheredParameters(
-                [param], enabled=self.strategy.args.zero_stage == 3
-            ):
+                # Fire all vllm engines for broadcast
                 if self.strategy.is_group_rank_0():
-                    dist.broadcast(param.data, 0, group=self._model_update_group)
-                    _ = [fut.result() for fut in futs]
+                    shape = (
+                        param.shape
+                        if self.strategy.args.zero_stage != 3
+                        else param.ds_shape
+                    )
+                    futs = [
+                        actor.futures.update_weight(
+                            name,
+                            dtype=torch_type_codec(param.dtype),
+                            shape=shape,
+                            empty_cache=count == num_params,
+                        )
+                        for actor in self.actors
+                    ]
+
+                # For ZeRO-3, allgather sharded parameter and broadcast to all vllm engines by rank 0
+                with deepspeed.zero.GatheredParameters(
+                    [param], enabled=self.strategy.args.zero_stage == 3
+                ):
+                    if self.strategy.is_group_rank_0():
+                        dist.broadcast(param.data, 0, group=self._model_update_group)
+                        _ = [fut.result() for fut in futs]
 
         if reset_prefix_cache_futs:
             _ = [fut.result() for fut in reset_prefix_cache_futs]
         torch.cuda.empty_cache()
         dist.barrier()
 
-        if self.args.lora_rank > 0:
+        if self.args.lora_rank > 0 and not self.args.lora_sync_only:
             # Unmerge the adapter to restore the model to its original state.
             unwrapped_model.unmerge_adapter()
 

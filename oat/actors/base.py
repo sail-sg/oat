@@ -14,12 +14,14 @@
 
 import abc
 import logging
+import os
 import time
 from typing import List, Union
 
 import torch
 import vllm
 from packaging import version
+from vllm.lora.request import LoRARequest
 
 from oat import oracles
 from oat.args import OATArgs
@@ -28,7 +30,7 @@ from oat.types import PreferenceData, TransitionData
 from oat.utils.distributed import torch_type_codec
 from oat.utils.ipc import PlasmaShmClient
 
-logging.getLogger("vllm").setLevel(logging.ERROR)
+logging.getLogger("vllm").setLevel(logging.WARNING)
 
 
 class ActorBase(abc.ABC):
@@ -80,6 +82,14 @@ class ActorBase(abc.ABC):
                 "worker_extension_cls": "oat.utils.distributed.WorkerWrap",
             }
         )
+
+        self.use_lora_req = args.lora_rank > 0 and args.lora_sync_only
+        if self.use_lora_req:
+            self.vllm_args.update(
+                {"enable_lora": True, "max_lora_rank": args.lora_rank}
+            )
+            self.lora_path = None
+
         _wait_time = 5
         for _ in range(10):
             # Retry in case network error when accessing HF.
@@ -93,7 +103,7 @@ class ActorBase(abc.ABC):
                 logging.warning(f"{e}")
                 logging.warning("Re-trying...")
         else:
-            raise RuntimeError("vllm cannot load the model")
+            raise RuntimeError(f"vllm cannot load the model")
 
         self.tokenizer = self.llm.get_tokenizer()
         # TODO(liuzc): after vllm upgraded to 0.8.3, we could not access `model_executor`
@@ -125,19 +135,31 @@ class ActorBase(abc.ABC):
         sampling_params: vllm.SamplingParams,
     ):
         self.generate_mode = True
+
+        lora_request = (
+            LoRARequest(
+                os.path.basename(self.lora_path), hash(self.lora_path), self.lora_path
+            )
+            if (self.use_lora_req and self.lora_path)
+            else None
+        )
         if isinstance(prompts[0], str):
             # Inference with text input
             if self.tokenizer.bos_token:
                 # removeprefix bos_token because vllm will add it.
                 prompts = [p.removeprefix(self.tokenizer.bos_token) for p in prompts]
             outputs = self.llm.generate(
-                prompts, sampling_params=sampling_params, use_tqdm=False
+                prompts,
+                sampling_params=sampling_params,
+                lora_request=lora_request,
+                use_tqdm=False,
             )
         else:
             # Inference with token input
             outputs = self.llm.generate(
                 prompt_token_ids=prompts,
                 sampling_params=sampling_params,
+                lora_request=lora_request,
                 use_tqdm=False,
             )
 
@@ -203,6 +225,9 @@ class ActorBase(abc.ABC):
         return self.llm.collective_rpc(
             "update_weight", args=(name, dtype, shape, cuda_ipc_handles, empty_cache)
         )
+
+    def update_lora_path(self, lora_path: str):
+        self.lora_path = lora_path
 
     def reset_prefix_cache(self):
         self.llm.llm_engine.reset_prefix_cache()
