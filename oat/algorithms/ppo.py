@@ -547,6 +547,12 @@ class PPOLearner(RLLearner):
                     ).sum()
                     act_num_token += (mb_response_masks == 1).sum()
 
+                    stats["sampler_learner_diff_max"].append(
+                        torch.amax(token_diff.detach() * mb_response_masks).item()
+                    )
+                    stats["sampler_learner_diff_min"].append(
+                        torch.amin(token_diff.detach() * mb_response_masks).item()
+                    )
                     stats["logprobs_diff_max"].append(
                         torch.amax(logprobs_diff.detach() * mb_response_masks).item()
                     )
@@ -642,6 +648,12 @@ class PPOLearner(RLLearner):
         if not args.reinforce_update:
             infos["logprobs_diff_max"] = torch.tensor(stats["logprobs_diff_max"]).max()
             infos["logprobs_diff_min"] = torch.tensor(stats["logprobs_diff_min"]).min()
+            infos["sampler_learner_diff_max"] = torch.tensor(
+                stats["sampler_learner_diff_max"]
+            ).min()
+            infos["sampler_learner_diff_min"] = torch.tensor(
+                stats["sampler_learner_diff_min"]
+            ).min()
             infos["zero_pg_loss_count"] = (
                 torch.tensor(stats["zero_pg_loss_count"]).float().mean()
             )

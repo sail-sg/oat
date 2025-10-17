@@ -797,7 +797,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         torch.cuda.empty_cache()
         dist.barrier()
 
-        if self.args.lora_rank > 0 and self.args.lora_sync_only:
+        if self.args.lora_rank > 0 and not self.args.lora_sync_only:
             # Unmerge the adapter to restore the model to its original state.
             unwrapped_model.unmerge_adapter()
 
