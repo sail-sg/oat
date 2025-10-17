@@ -423,7 +423,7 @@ class PPOMultiTurnLearner(PPOLearner):
                 mb_advantage = advantages[mini_batch_inds]
                 mb_input_ids = input_ids[mini_batch_inds]
                 mb_att_mask = att_mask[mini_batch_inds]
-                state_ids[mini_batch_inds[0]][None]
+                mb_state_ids = state_ids[mini_batch_inds[0]][None]
 
                 mb_response_masks = response_masks[mini_batch_inds]
                 mb_logps = logps[mini_batch_inds]
