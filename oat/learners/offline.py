@@ -51,12 +51,11 @@ class OfflineLearner(LearnerBase):
                 self.prompt_consumed += bs
                 self.query_step += bs
 
-                if self.steps % self.update_interval == 0:
-                    self._pre_learning()
-                    train_info = self.learn(self.steps // self.update_interval)
-                    self._post_learning()
+                self._pre_learning()
+                train_info = self.learn(self.steps)
+                self._post_learning()
 
-                    self.eval_and_log(train_info)
+                self.eval_and_log(train_info)
 
                 progress_bar.update()
                 self.steps += 1
