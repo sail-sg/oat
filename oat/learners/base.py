@@ -202,6 +202,14 @@ class LearnerBase(abc.ABC, DistributedLauncher):
         self.update_interval = args.rollout_batch_size // (
             strategy.world_size * args.rollout_batch_size_per_device
         )
+
+        # if offline mode, update_interval is 1
+        from oat.types import DAPAlgo
+        if (self.algo in DAPAlgo):
+            self.update_interval = 1
+        print("self.update_interval",self.update_interval)
+        
+
         assert (
             args.rollout_batch_size
             % (strategy.world_size * args.rollout_batch_size_per_device)

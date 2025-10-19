@@ -29,7 +29,8 @@ class OfflineLearner(LearnerBase):
         self.start_time = time.time()
 
         self.actor_info = {}
-        bs = self.args.rollout_batch_size_per_device
+        # Batch size per device calculated from train_batch_size in offline mode
+        bs = self.args.train_batch_size // self.strategy.world_size 
 
         if not self.strategy.args.debug:
             self.eval_and_log({}, eval=True)
