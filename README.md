@@ -12,6 +12,8 @@
 ---
 
 ## Updates
+* 31/10/2025: We advocate for re-evaluating precision choices in RL training ([Precision RL](https://github.com/sail-sg/Precision-RL)) — demonstrating that *FP16* offers superior performance and stability compared to the de facto BF16.
+* 02/10/2025: We add LoRA-RL support and validate its performance as comparable to full fine-tuning RL (super excited to be [highlighted by John Schulman](https://x.com/johnschulman2/status/1974948097500582254)).
 * 21/03/2025: We incorporate [Dr. GRPO](https://github.com/sail-sg/understand-r1-zero), which fixes the optimization bias in GRPO.
 * 26/01/2025: We support reinforcement learning with verifiable rewards (RLVR) for math reasoning.
 * 20/10/2024: We open source Oat, an online LLM alignment framework developed during a research project on online LLM exploration ([sample-efficient alignment](https://arxiv.org/pdf/2411.01493)).

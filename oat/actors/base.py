@@ -100,8 +100,8 @@ class ActorBase(abc.ABC):
                 # In case of timeout.
                 time.sleep(_wait_time)
                 _wait_time *= 1.2
-                logging.warning(f"{e}")
-                logging.warning("Re-trying...")
+                print(e)
+                print("Re-trying...")
         else:
             raise RuntimeError(f"vllm cannot load the model")
 

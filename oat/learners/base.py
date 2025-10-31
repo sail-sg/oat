@@ -98,6 +98,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
             args.pretrain,
             use_flash_attention_2=args.flash_attn,
             bf16=args.bf16,
+            fp16=args.fp16,
             load_in_4bit=args.load_in_4bit,
             lora_rank=args.lora_rank,
             lora_alpha=args.lora_alpha,
