@@ -80,7 +80,7 @@ def get_program(
         "trust_remote_code": True,
         "tensor_parallel_size": args.num_gpus_per_actor,
         "gpu_memory_utilization": args.vllm_gpu_ratio,
-        "dtype": "bfloat16",
+        "dtype": "bfloat16" if args.bf16 else "float16" if args.fp16 else "float32",
         "enable_prefix_caching": args.enable_prefix_caching,
         "enable_sleep_mode": args.vllm_sleep,
         "max_model_len": args.max_model_len,

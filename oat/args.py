@@ -224,6 +224,7 @@ class OATArgs:
 
     zero_stage: int = 2
     bf16: bool = True
+    fp16: bool = False
     ref_offload: bool = False
     learning_rate: float = 5e-7
     critic_learning_rate: float = 9e-6
@@ -232,6 +233,7 @@ class OATArgs:
     )
     lr_warmup_ratio: float = 0.03
     zpg: int = 1
+    model_offload: bool = False
     adam_offload: bool = False
     flash_attn: bool = True
     grad_accum_dtype: str = None
@@ -315,4 +317,5 @@ def default_args_validation(args: OATArgs):
         raise ValueError(
             "fused lm head is not supported for ZeRO-3, please set --no-use_fused_lm_head"
         )
+    assert not (args.bf16 and args.fp16), "cannot enable both bf16 and fp16"
     return args

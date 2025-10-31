@@ -541,17 +541,18 @@ class PPOLearner(RLLearner):
                         pg_loss_max *= tis
 
                     token_diff = mb_actor_logps - mb_logps.detach()
+                    prob_diff = torch.exp(mb_actor_logps) - torch.exp(mb_logps.detach())
                     kl_v1_sum += masked_sum(token_diff, mb_response_masks, axis=1).sum()
                     kl_v2_sum += masked_sum(
                         token_diff**2, mb_response_masks, axis=1
                     ).sum()
                     act_num_token += (mb_response_masks == 1).sum()
 
-                    stats["sampler_learner_diff_max"].append(
-                        torch.amax(token_diff.detach() * mb_response_masks).item()
+                    stats["sampler_learner_prob_diff_max"].append(
+                        torch.amax(prob_diff * mb_response_masks).item()
                     )
-                    stats["sampler_learner_diff_min"].append(
-                        torch.amin(token_diff.detach() * mb_response_masks).item()
+                    stats["sampler_learner_prob_diff_min"].append(
+                        torch.amin(prob_diff * mb_response_masks).item()
                     )
                     stats["logprobs_diff_max"].append(
                         torch.amax(logprobs_diff.detach() * mb_response_masks).item()
@@ -648,11 +649,11 @@ class PPOLearner(RLLearner):
         if not args.reinforce_update:
             infos["logprobs_diff_max"] = torch.tensor(stats["logprobs_diff_max"]).max()
             infos["logprobs_diff_min"] = torch.tensor(stats["logprobs_diff_min"]).min()
-            infos["sampler_learner_diff_max"] = torch.tensor(
-                stats["sampler_learner_diff_max"]
+            infos["sampler_learner_prob_diff_max"] = torch.tensor(
+                stats["sampler_learner_prob_diff_max"]
             ).max()
-            infos["sampler_learner_diff_min"] = torch.tensor(
-                stats["sampler_learner_diff_min"]
+            infos["sampler_learner_prob_diff_min"] = torch.tensor(
+                stats["sampler_learner_prob_diff_min"]
             ).min()
             infos["zero_pg_loss_count"] = (
                 torch.tensor(stats["zero_pg_loss_count"]).float().mean()

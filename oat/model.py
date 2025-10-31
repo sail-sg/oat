@@ -42,6 +42,7 @@ class LLM(nn.Module):
         pretrain_or_model,
         use_flash_attention_2=False,
         bf16=True,
+        fp16=False,
         load_in_4bit=False,
         lora_rank=0,
         lora_alpha=16,
@@ -76,12 +77,13 @@ class LLM(nn.Module):
                 zero_init_context = contextlib.nullcontext()
 
             with zero_init_context:
+                torch_dtype = torch.bfloat16 if bf16 else torch.float16 if fp16 else torch.float32
                 self.model = AutoModelForCausalLM.from_pretrained(
                     pretrain_or_model,
                     trust_remote_code=True,
                     attn_implementation=attn_implementation,
                     quantization_config=nf4_config,
-                    torch_dtype=torch.bfloat16 if bf16 else "auto",
+                    torch_dtype=torch_dtype,
                     device_map=device_map,
                 )
 
@@ -224,6 +226,7 @@ class Critic(nn.Module):
         pretrain_or_model,
         use_flash_attention_2=False,
         bf16=True,
+        fp16=False,
         load_in_4bit=False,
         lora_rank=0,
         lora_alpha=16,
@@ -261,11 +264,12 @@ class Critic(nn.Module):
                 base_class, base_class.__base__, value_head_prefix
             )
 
+            torch_dtype = torch.bfloat16 if bf16 else torch.float16 if fp16 else "auto"
             self.model = critic_cls.from_pretrained(
                 pretrain_or_model,
                 config=config,
                 trust_remote_code=True,
-                torch_dtype=torch.bfloat16 if bf16 else "auto",
+                torch_dtype=torch_dtype,
                 quantization_config=nf4_config,
                 device_map=device_map,
             )
