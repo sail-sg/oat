@@ -54,6 +54,7 @@ class OATArgs:
     shm_size_mb: int = 5000
     # Asynchronous training.
     asynchronous: bool = False
+    disable_cascade_attn: Optional[bool] = None
 
     """Training configurations."""
     # Model name.

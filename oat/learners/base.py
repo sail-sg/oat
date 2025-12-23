@@ -408,7 +408,7 @@ class LearnerBase(abc.ABC, DistributedLauncher):
                 if self.get_current_query() > self.args.max_queries:
                     early_stop = True
 
-            self.prompt_epoch = p_ep + 1
+            self.prompt_epoch = (p_ep * getattr(self, "_prompt_n_repeat", 1)) + 1
 
         self.eval_and_log(train_info, eval=True, save=True)
 

@@ -77,7 +77,9 @@ class LLM(nn.Module):
                 zero_init_context = contextlib.nullcontext()
 
             with zero_init_context:
-                torch_dtype = torch.bfloat16 if bf16 else torch.float16 if fp16 else torch.float32
+                torch_dtype = (
+                    torch.bfloat16 if bf16 else torch.float16 if fp16 else torch.float32
+                )
                 self.model = AutoModelForCausalLM.from_pretrained(
                     pretrain_or_model,
                     trust_remote_code=True,

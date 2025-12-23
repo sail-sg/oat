@@ -90,6 +90,9 @@ class ActorBase(abc.ABC):
             )
             self.lora_path = None
 
+        if args.disable_cascade_attn is not None:
+            self.vllm_args.update({"disable_cascade_attn": args.disable_cascade_attn})
+
         _wait_time = 5
         for _ in range(10):
             # Retry in case network error when accessing HF.

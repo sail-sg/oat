@@ -13,6 +13,7 @@
 # limitations under the License.
 """Defining how components interface with each other."""
 import logging
+import os
 from typing import Type
 
 import launchpad as lp
@@ -36,18 +37,22 @@ def get_program(
     program = lp.Program("oat")
     gpu_offset = (args.group_rank * args.gpus) % torch.cuda.device_count()
     # Resource.
+    available_gpus = os.environ.get(
+        "CUDA_VISIBLE_DEVICES", ",".join(map(str, range(args.gpus)))
+    )
+    available_gpus = list(map(int, available_gpus.split(",")))
     if args.collocate:
-        actor_gpus = learner_gpus = list(range(args.gpus))
+        actor_gpus = learner_gpus = available_gpus
     else:
         if args.gpus % 2 == 0:
-            actor_gpus = list(range(args.gpus // 2))
-            learner_gpus = list(range(args.gpus // 2, args.gpus))
+            actor_gpus = available_gpus[: args.gpus // 2]
+            learner_gpus = available_gpus[args.gpus // 2 :]
         else:
             logging.warning(
                 "Number of GPUs not divisible by 2, one GPU will be forced to collocate learner and actor."
             )
-            actor_gpus = list(range(args.gpus // 2 + 1))
-            learner_gpus = list(range(args.gpus // 2, args.gpus))
+            actor_gpus = available_gpus[: args.gpus // 2 + 1]
+            learner_gpus = available_gpus[args.gpus // 2 :]
     actor_gpus = [gpu + gpu_offset for gpu in actor_gpus]
     learner_gpus = [gpu + gpu_offset for gpu in learner_gpus]
 

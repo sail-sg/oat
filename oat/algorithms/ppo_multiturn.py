@@ -34,12 +34,10 @@ from oat.actors.base import ActorBase
 from oat.algorithms.ppo import ActorBase, PPOActor, PPOArgs, PPOLearner
 from oat.collectors.base import FeedbackCollector
 from oat.types import Transition, TransitionData
-from oat.utils.data import (
-    TransitionDataset,
-)
+from oat.utils.data import TransitionDataset
 from oat.utils.deepspeed import DeepspeedStrategy
 from oat.utils.ipc import PlasmaShmClient
-from oat.utils.ops import masked_mean
+from oat.utils.ops import masked_mean, masked_sum
 
 
 class MultiTurnTransitionDataset(TransitionDataset):
@@ -415,6 +413,9 @@ class PPOMultiTurnLearner(PPOLearner):
         local_grad_step = 0
         for _ in range(args.num_ppo_epochs):
             batch_inds = np.random.permutation(len(input_ids))
+            kl_v1_sum = 0
+            kl_v2_sum = 0
+            act_num_token = 0
             for b_st in range(0, len(input_ids), args.train_batch_size_per_device):
                 local_grad_step += 1
                 mini_batch_inds = batch_inds[
@@ -487,6 +488,21 @@ class PPOMultiTurnLearner(PPOLearner):
                             max=self.args.tis_c
                         )
                         pg_loss_max *= tis
+
+                    token_diff = mb_actor_logps - mb_logps.detach()
+                    prob_diff = torch.exp(mb_actor_logps) - torch.exp(mb_logps.detach())
+                    kl_v1_sum += masked_sum(token_diff, mb_response_masks, axis=1).sum()
+                    kl_v2_sum += masked_sum(
+                        token_diff**2, mb_response_masks, axis=1
+                    ).sum()
+                    act_num_token += (mb_response_masks == 1).sum()
+
+                    stats["sampler_learner_prob_diff_max"].append(
+                        torch.amax(prob_diff * mb_response_masks).item()
+                    )
+                    stats["sampler_learner_prob_diff_min"].append(
+                        torch.amin(prob_diff * mb_response_masks).item()
+                    )
 
                     stats["logprobs_diff_max"].append(
                         torch.amax(logprobs_diff.detach() * mb_response_masks).item()
@@ -582,6 +598,12 @@ class PPOMultiTurnLearner(PPOLearner):
         if not args.reinforce_update:
             infos["logprobs_diff_max"] = torch.tensor(stats["logprobs_diff_max"]).max()
             infos["logprobs_diff_min"] = torch.tensor(stats["logprobs_diff_min"]).min()
+            infos["sampler_learner_prob_diff_max"] = torch.tensor(
+                stats["sampler_learner_prob_diff_max"]
+            ).max()
+            infos["sampler_learner_prob_diff_min"] = torch.tensor(
+                stats["sampler_learner_prob_diff_min"]
+            ).min()
             infos["zero_pg_loss_count"] = (
                 torch.tensor(stats["zero_pg_loss_count"]).float().mean()
             )
@@ -595,5 +617,7 @@ class PPOMultiTurnLearner(PPOLearner):
         infos["all_one_rewards_count"] = (
             (final_rewards.view(-1, self.args.num_samples).mean(-1) == 1).sum().cpu()
         )
+        infos["kl_sample_train_v1"] = kl_v1_sum / act_num_token
+        infos["kl_sample_train_v2"] = 0.5 * kl_v2_sum / act_num_token
 
         return infos
