@@ -1038,7 +1038,7 @@ def r1_distill_qwen_math_reward_fn(
             incorrect_reward,
         )
     else:
-        return {"formatted": False}, 0.0
+        return {"formatted": False}, incorrect_reward
 
 
 def answer_tag_reward_fn(
